@@ -1,0 +1,55 @@
+schema: spec-driven
+
+context: |
+  Project: SO Turnero, greenfield API-first backend for an academic occupational-health appointment MVP.
+  Planned stack: TypeScript, NestJS, Prisma, administered PostgreSQL, and Vercel backend deployment.
+  Architecture: API-first backend; no frontend in this stage. Application code is not yet present.
+  Source specifications: docs/requisitos/ contains requirements, use cases, user stories, and conceptual maps.
+  Testing: no runner is installed yet; strict TDD is disabled until one is added.
+  Conventions: English SDD artifacts; preserve source requirements and use OpenSpec file artifacts.
+
+strict_tdd: false
+
+testing:
+  detected: "2026-10-09"
+  strict_tdd: false
+  reason: "No test runner or test configuration exists in this greenfield repository. Strict TDD becomes true once a runner is installed."
+  runner:
+    available: false
+    command: ""
+    framework: "—"
+  layers:
+    unit: { available: false, tool: "—" }
+    integration: { available: false, tool: "—" }
+    e2e: { available: false, tool: "—" }
+  coverage:
+    available: false
+    command: ""
+  quality:
+    linter: { available: false, command: "" }
+    type_checker: { available: false, command: "" }
+    formatter: { available: false, command: "" }
+
+rules:
+  proposal:
+    - Include rollback plans for risky changes.
+    - Trace scope to the source documents in docs/requisitos/.
+  specs:
+    - Use Given/When/Then scenarios.
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY).
+  design:
+    - Document architecture decisions with rationale.
+    - Include sequence diagrams for complex flows.
+  tasks:
+    - Group tasks by phase with hierarchical numbering.
+    - Keep tasks completable in one session.
+  apply:
+    - Follow the approved design and existing project conventions.
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas.
