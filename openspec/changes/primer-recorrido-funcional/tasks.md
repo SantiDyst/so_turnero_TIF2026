@@ -3,26 +3,33 @@
 ## Review Workload Forecast
 
 Estimated changed lines: 700–1,000
-Decision needed before apply: Yes
+Decision needed before apply: No — resolved: chained PRs approved
 Chained PRs recommended: Yes
-Chain strategy: pending
+Chain strategy: stacked-to-main
 400-line budget risk: High
 Delivery strategy: ask-on-risk
 
-Work units: PR 1 scaffold/data; PR 2 registration/query; PR 3 attention/tests/docs. Sequential, independently verifiable.
+Review budget policy: default 400 changed lines per PR. When a work unit naturally exceeds it, record a `size:exception` for that PR. NEVER drop, thin out, or defer in-scope functionality to fit the budget — split by work unit only, never by artificial line reduction.
+
+Execution guardrails:
+- Implement one work unit per PR; run each to completion once, with bounded retries. No open-ended loops.
+- A subagent that cannot finish its work unit MUST stop and report the blocker; it MUST NOT silently shrink scope.
+- Every PR MUST keep its tests/docs with the behavior it verifies and remain independently buildable and rollback-able.
+
+Work units: PR 1 scaffold/data; PR 2 registration/query; PR 3 attention/tests/docs. Sequential, stacked on main; independently verifiable.
 
 ## Phase 1: Project Scaffolding
 
-- [ ] 1.1 Create NestJS/TypeScript structure, `src/app.module.ts`, scripts, tsconfig, lint, and format config; verify build.
-- [ ] 1.2 Add Prisma 7, `prisma.config.ts`, `.env.example` with pooled `DATABASE_URL`/direct `DIRECT_URL`, and cached `PrismaPg`; verify CLI uses only `DIRECT_URL`, runtime never does. Depends on 1.1.
-- [ ] 1.3 Add `api/index.ts` Vercel entry and health route; verify handler import. Depends on 1.1.
+- [x] 1.1 Create NestJS/TypeScript structure, `src/app.module.ts`, scripts, tsconfig, lint, and format config; verify build.
+- [x] 1.2 Add Prisma 7, `prisma.config.ts`, `.env.example` with pooled `DATABASE_URL`/direct `DIRECT_URL`, and cached `PrismaPg`; verify CLI uses only `DIRECT_URL`, runtime never does. Depends on 1.1.
+- [x] 1.3 Add `api/index.ts` Vercel entry and health route; verify handler import. Depends on 1.1.
 
 ## Phase 2: Data Model and Migration
 
-- [ ] 2.1 Create `prisma/schema.prisma` models, relations, enums, timestamps, and unique keys; verify schema/client generation. Depends on 1.2.
-- [ ] 2.2 Create/review migration and `recorrido_attention_no_seq`, rendering `AT-` plus four digits; verify registrations get distinct numbers.
-- [ ] 2.3 Add exact partial index `atencion_one_active_per_applicant` on `Atencion(postulanteId)` where state is `En atención`; verify it enforces one active row.
-- [ ] 2.4 Add `src/prisma/*` and feature module shells; verify dependency injection starts. Depends on 2.1.
+- [x] 2.1 Create `prisma/schema.prisma` models, relations, enums, timestamps, and unique keys; verify schema/client generation. Depends on 1.2.
+- [x] 2.2 Create/review migration and `recorrido_attention_no_seq`, rendering `AT-` plus four digits; verify registrations get distinct numbers.
+- [x] 2.3 Add exact partial index `atencion_one_active_per_applicant` on `Atencion(postulanteId)` where state is `En atención`; verify it enforces one active row.
+- [x] 2.4 Add `src/prisma/*` and feature module shells; verify dependency injection starts. Depends on 2.1.
 
 ## Phase 3: Applicant Registration
 
