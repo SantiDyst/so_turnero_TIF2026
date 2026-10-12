@@ -7,8 +7,22 @@ CREATE TYPE "AtencionEstado" AS ENUM ('No iniciada', 'En espera', 'En atención'
 -- CreateEnum
 CREATE TYPE "DisponibilidadProfesional" AS ENUM ('Disponible', 'Ocupado');
 
--- Attention numbers are monotonic; gaps after a rolled-back transaction are acceptable.
+-- Attention numbers are monotonic and human-readable: AT- plus zero-padded digits
+-- (minimum width 4: AT-0001). Gaps after a rolled-back transaction are acceptable.
 CREATE SEQUENCE recorrido_attention_no_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+
+-- Renders the next attention number. Uses an explicit CASE instead of a fixed-width
+-- to_char/lpad, because lpad truncates and to_char overflows to '#' once the value
+-- passes 9999; both would break the AT-0001 / AT-10000 format the design requires.
+CREATE FUNCTION next_attention_no() RETURNS text
+LANGUAGE plpgsql VOLATILE AS $$
+DECLARE
+    n bigint;
+BEGIN
+    n := nextval('recorrido_attention_no_seq');
+    RETURN 'AT-' || CASE WHEN n >= 10000 THEN n::text ELSE lpad(n::text, 4, '0') END;
+END;
+$$;
 
 -- CreateTable
 CREATE TABLE "Postulante" (
@@ -25,7 +39,7 @@ CREATE TABLE "Postulante" (
 CREATE TABLE "Recorrido" (
     "id" TEXT NOT NULL,
     "postulanteId" TEXT NOT NULL,
-    "numeroAtencion" TEXT NOT NULL DEFAULT ('AT-' || to_char(nextval('recorrido_attention_no_seq'), 'FM0000')),
+    "numeroAtencion" TEXT NOT NULL DEFAULT next_attention_no(),
     "estado" "RecorridoEstado" NOT NULL DEFAULT 'En espera',
     "queuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
