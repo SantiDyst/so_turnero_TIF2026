@@ -45,9 +45,9 @@ Work units: PR 1 scaffold/data; PR 2 registration/query; PR 3 attention/tests/do
 
 ## Phase 5: Professional Attention
 
-- [ ] 5.1 Implement `POST /journeys/:id/attentions`: eligibility, transaction, row lock, updates, unique-error `409`; verify rejected starts roll back. Depends on 4.3.
-- [ ] 5.2 Implement `PATCH /attentions/:id/finalize` for `Finalizada`/`Pendiente`; release professional and preserve `En proceso`. Verify non-active finalization changes nothing. Depends on 5.1.
-- [ ] 5.3 Wire `ProfessionalsModule` availability contracts; verify `Ocupado` professionals cannot be reused. Depends on 5.1.
+- [x] 5.1 Implement `POST /journeys/:id/attentions`: eligibility, transaction, row lock, updates, unique-error `409`; verify rejected starts roll back. Depends on 4.3.
+- [x] 5.2 Implement `PATCH /attentions/:id/finalize` for `Finalizada`/`Pendiente`; release professional and preserve `En proceso`. Verify non-active finalization changes nothing. Depends on 5.1.
+- [x] 5.3 Wire `ProfessionalsModule` availability contracts; verify `Ocupado` professionals cannot be reused. Depends on 5.1.
 
 ## Phase 6: Testing Setup and Tests
 
