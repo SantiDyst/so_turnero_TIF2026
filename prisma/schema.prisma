@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RecorridoEstado {
+  EN_ESPERA  @map("En espera")
+  EN_PROCESO @map("En proceso")
+}
+
+enum AtencionEstado {
+  NO_INICIADA @map("No iniciada")
+  EN_ESPERA   @map("En espera")
+  EN_ATENCION @map("En atención")
+  FINALIZADA  @map("Finalizada")
+  PENDIENTE   @map("Pendiente")
+}
+
+enum DisponibilidadProfesional {
+  DISPONIBLE @map("Disponible")
+  OCUPADO    @map("Ocupado")
+}
+
+model Postulante {
+  id         String     @id @default(uuid())
+  nombre     String
+  apellido   String
+  dni        String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  recorrido  Recorrido?
+  atenciones Atencion[] @relation("AtencionesPostulante")
+}
+
+model Recorrido {
+  id             String          @id @default(uuid())
+  postulanteId   String          @unique
+  numeroAtencion String          @unique
+  estado         RecorridoEstado @default(EN_ESPERA)
+  queuedAt       DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  postulante     Postulante      @relation(fields: [postulanteId], references: [id], onDelete: Cascade)
+  atenciones     Atencion[]
+}
+
+model Atencion {
+  id            String         @id @default(uuid())
+  recorridoId   String
+  postulanteId  String
+  especialidad  String
+  profesionalId String
+  estado        AtencionEstado
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  recorrido     Recorrido      @relation(fields: [recorridoId], references: [id], onDelete: Restrict)
+  postulante    Postulante     @relation("AtencionesPostulante", fields: [postulanteId], references: [id], onDelete: Restrict)
+  profesional   Profesional    @relation(fields: [profesionalId], references: [id], onDelete: Restrict)
+
+  @@index([recorridoId])
+  @@index([profesionalId])
+}
+
+model Profesional {
+  id             String                    @id @default(uuid())
+  nombre         String
+  disponibilidad DisponibilidadProfesional @default(DISPONIBLE)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  atenciones     Atencion[]
+}
