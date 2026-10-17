@@ -33,15 +33,15 @@ Work units: PR 1 scaffold/data; PR 2 registration/query; PR 3 attention/tests/do
 
 ## Phase 3: Applicant Registration
 
-- [ ] 3.1 Add validation and `POST /applicants`; verify missing fields are all reported and no records are created. Depends on 2.4.
-- [ ] 3.2 Implement atomic sequence/applicant/journey/queue creation and rollback; verify `201`, `En espera`, and no active attention.
-- [ ] 3.3 Map responses and number conflicts; verify distinct persisted numbers. Depends on 3.2.
+- [x] 3.1 Add validation and `POST /applicants`; verify missing fields are all reported and no records are created. Depends on 2.4.
+- [x] 3.2 Implement atomic sequence/applicant/journey/queue creation and rollback; verify `201`, `En espera`, and no active attention.
+- [x] 3.3 Map responses and number conflicts; verify distinct persisted numbers. Depends on 3.2.
 
 ## Phase 4: Queue and Journey Queries
 
-- [ ] 4.1 Implement `GET /queue`; verify new entries are `En espera` and started journeys leave the queue. Depends on 3.2.
-- [ ] 4.2 Implement `GET /journeys` by exactly one applicant id or attention number; verify equivalent results and `400`/`404`.
-- [ ] 4.3 Centralize approved state vocabulary and nested mappings; verify journey, attention, and availability states remain distinct. Depends on 4.2.
+- [x] 4.1 Implement `GET /queue`; verify new entries are `En espera` and started journeys leave the queue. Depends on 3.2.
+- [x] 4.2 Implement `GET /journeys` by exactly one applicant id or attention number; verify equivalent results and `400`/`404`.
+- [x] 4.3 Centralize approved state vocabulary and nested mappings; verify journey, attention, and availability states remain distinct. Depends on 4.2.
 
 ## Phase 5: Professional Attention
 

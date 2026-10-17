@@ -1,4 +1,10 @@
 import { Module } from '@nestjs/common';
 
-@Module({})
+import { JourneysController } from './journeys.controller';
+import { QueueQueryService } from './queue-query.service';
+
+@Module({
+  controllers: [JourneysController],
+  providers: [QueueQueryService],
+})
 export class JourneysModule {}
