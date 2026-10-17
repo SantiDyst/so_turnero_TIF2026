@@ -1,5 +1,10 @@
 import { INestApplication } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  AtencionEstado,
+  DisponibilidadProfesional,
+  Prisma,
+  RecorridoEstado,
+} from '@prisma/client';
 import request from 'supertest';
 
 import { createApp } from '../../src/app.factory';
@@ -159,5 +164,99 @@ describe('first functional journey HTTP API', () => {
       Prisma.sql`SELECT COUNT(*)::bigint AS "count" FROM "Atencion" WHERE "postulanteId" = ${registered.applicant.id} AND "estado" = 'En atención'`,
     );
     expect(active[0]?.count).toBe(1n);
+  });
+
+  it('reads a finalized attention through a second application instance', async () => {
+    const registered = await registerApplicant('E2E Persist Finalized');
+    const professional = await prisma.client.profesional.create({
+      data: { nombre: 'Dr. Persist Finalized' },
+    });
+    const started = await request(app.getHttpServer())
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .send({ specialty: 'Clinical', professionalId: professional.id })
+      .expect(201);
+
+    const finalized = await request(app.getHttpServer())
+      .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .send({ state: 'Finalizada' })
+      .expect(200);
+    expect(finalized.body).toEqual(
+      expect.objectContaining({
+        state: 'Finalizada',
+        journeyState: 'En proceso',
+        professionalAvailability: 'Disponible',
+      }),
+    );
+    expect(finalized.body.endedAt).toBeTruthy();
+
+    const restarted = await createApp();
+    await restarted.init();
+    try {
+      const response = await request(restarted.getHttpServer())
+        .get('/journeys')
+        .query({ applicantId: registered.applicant.id })
+        .expect(200);
+      expect(response.body.journey).toEqual(
+        expect.objectContaining({
+          attentionNumber: registered.journey.attentionNumber,
+          state: 'En proceso',
+        }),
+      );
+      expect(response.body.attentions).toHaveLength(1);
+      expect(response.body.attentions[0]).toEqual(
+        expect.objectContaining({
+          id: started.body.attentionId,
+          state: 'Finalizada',
+          specialty: 'Clinical',
+          endedAt: expect.any(String),
+          professional: expect.objectContaining({
+            id: professional.id,
+            name: 'Dr. Persist Finalized',
+            availability: 'Disponible',
+          }),
+        }),
+      );
+    } finally {
+      await restarted.close();
+    }
+  });
+
+  it('finalizes an attention as Pendiente and persists the pending outcome', async () => {
+    const registered = await registerApplicant('E2E Pending');
+    const professional = await prisma.client.profesional.create({
+      data: { nombre: 'Dr. Pending' },
+    });
+    const started = await request(app.getHttpServer())
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .send({ specialty: 'Occupational medicine', professionalId: professional.id })
+      .expect(201);
+
+    const finalized = await request(app.getHttpServer())
+      .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .send({ state: 'Pendiente' })
+      .expect(200);
+    expect(finalized.body).toEqual(
+      expect.objectContaining({
+        id: started.body.attentionId,
+        state: 'Pendiente',
+        journeyState: 'En proceso',
+        professionalAvailability: 'Disponible',
+      }),
+    );
+    expect(finalized.body.endedAt).toBeTruthy();
+
+    const persisted = await prisma.client.atencion.findUniqueOrThrow({
+      where: { id: started.body.attentionId },
+    });
+    const journey = await prisma.client.recorrido.findUniqueOrThrow({
+      where: { id: registered.journey.id },
+    });
+    const released = await prisma.client.profesional.findUniqueOrThrow({
+      where: { id: professional.id },
+    });
+    expect(persisted.estado).toBe(AtencionEstado.PENDIENTE);
+    expect(persisted.endedAt).not.toBeNull();
+    expect(journey.estado).toBe(RecorridoEstado.EN_PROCESO);
+    expect(released.disponibilidad).toBe(DisponibilidadProfesional.DISPONIBLE);
   });
 });
