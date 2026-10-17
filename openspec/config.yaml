@@ -3,25 +3,25 @@ schema: spec-driven
 context: |
   Project: SO Turnero, greenfield API-first backend for an academic occupational-health appointment MVP.
   Planned stack: TypeScript, NestJS, Prisma, administered PostgreSQL, and Vercel backend deployment.
-  Architecture: API-first backend; no frontend in this stage. Application code is not yet present.
+  Architecture: API-first backend; no frontend in this stage. Application code covers registration, queue/query, and one professional attention.
   Source specifications: docs/requisitos/ contains requirements, use cases, user stories, and conceptual maps.
-  Testing: no runner is installed yet; strict TDD is disabled until one is added.
+  Testing: Jest with ts-jest runs unit, isolated-schema integration, and HTTP E2E tests; strict TDD remains disabled.
   Conventions: English SDD artifacts; preserve source requirements and use OpenSpec file artifacts.
 
 strict_tdd: false
 
 testing:
-  detected: "2026-10-09"
+  detected: "2026-10-17"
   strict_tdd: false
-  reason: "No test runner or test configuration exists in this greenfield repository. Strict TDD becomes true once a runner is installed."
+  reason: "Jest and ts-jest are installed for standard-mode testing. Strict TDD remains disabled by approved task scope."
   runner:
-    available: false
-    command: ""
-    framework: "—"
+    available: true
+    command: "npm test"
+    framework: "Jest 29 + ts-jest"
   layers:
-    unit: { available: false, tool: "—" }
-    integration: { available: false, tool: "—" }
-    e2e: { available: false, tool: "—" }
+    unit: { available: true, tool: "Jest mocks" }
+    integration: { available: true, tool: "Jest + isolated Neon test_ schema" }
+    e2e: { available: true, tool: "Jest + supertest + isolated Neon test_ schema" }
   coverage:
     available: false
     command: ""
@@ -46,10 +46,10 @@ rules:
   apply:
     - Follow the approved design and existing project conventions.
     tdd: false
-    test_command: ""
+    test_command: "npm test"
   verify:
-    test_command: ""
-    build_command: ""
+    test_command: "npm test"
+    build_command: "npm run build"
     coverage_threshold: 0
   archive:
     - Warn before merging destructive deltas.

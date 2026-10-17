@@ -23,6 +23,7 @@ pnpm-debug.log*
 # Testing / coverage
 coverage/
 .nyc_output/
+.test-runtime.json
 
 # Prisma
 prisma/migrations/dev.db*

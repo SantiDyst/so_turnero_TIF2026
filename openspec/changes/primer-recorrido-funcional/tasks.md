@@ -51,12 +51,12 @@ Work units: PR 1 scaffold/data; PR 2 registration/query; PR 3 attention/tests/do
 
 ## Phase 6: Testing Setup and Tests
 
-- [ ] 6.1 Add TypeScript runner and isolated test PostgreSQL; verify availability and update metadata; strict TDD initially false.
-- [ ] 6.2 Add unit tests for validation, transitions, vocabulary, and error mapping; verify invalid transitions fail. Depends on 3.1, 5.1.
-- [ ] 6.3 Add integration tests for migration, sequence/index, rollback, and release; verify database invariants. Depends on 2.3, 5.2.
-- [ ] 6.4 Add HTTP E2E tests for all endpoints, restart persistence, and synchronized race; verify one `201`, one `409`, one active row. Depends on 4.2, 5.2.
+- [x] 6.1 Add TypeScript runner and isolated test PostgreSQL; verify availability and update metadata; strict TDD initially false.
+- [x] 6.2 Add unit tests for validation, transitions, vocabulary, and error mapping; verify invalid transitions fail. Depends on 3.1, 5.1.
+- [x] 6.3 Add integration tests for migration, sequence/index, rollback, and release; verify database invariants. Depends on 2.3, 5.2.
+- [x] 6.4 Add HTTP E2E tests for all endpoints, restart persistence, and synchronized race; verify one `201`, one `409`, one active row. Depends on 4.2, 5.2.
 
 ## Phase 7: Manual Verification and Documentation
 
-- [ ] 7.1 Add Postman/curl walkthrough and excluded-scope note; verify documented status codes/states. Depends on 6.4.
-- [ ] 7.2 Document Neon/Vercel URLs, rollback, and restart check; verify history survives restart. Depends on 7.1.
+- [x] 7.1 Add Postman/curl walkthrough and excluded-scope note; verify documented status codes/states. Depends on 6.4.
+- [x] 7.2 Document Neon/Vercel URLs, rollback, and restart check; verify history survives restart. Depends on 7.1.

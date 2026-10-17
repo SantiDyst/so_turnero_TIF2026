@@ -1,12 +1,10 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 
-import { NestFactory } from '@nestjs/core';
-
-import { AppModule } from './app.module';
+import { createApp } from './app.factory';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await createApp();
   await app.listen(process.env['PORT'] ?? 3000);
 }
 
