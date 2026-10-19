@@ -13,8 +13,9 @@ import {
   ResultadoEspecialidad,
 } from '@prisma/client';
 
+import { storeJourneyAptitude } from '../aptitude/aptitude.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toEvaluationState } from '../shared/state-vocabulary';
+import { JourneyState, toEvaluationState } from '../shared/state-vocabulary';
 
 export interface CreatePendingInput {
   motivo: string;
@@ -35,6 +36,7 @@ interface LockedEvaluation {
   estado: EvaluacionEstado;
   especialidad: Especialidad;
   resultado: ResultadoEspecialidad | null;
+  recorridoId: string;
 }
 
 const RESULT_SPECIALTIES: readonly Especialidad[] = [
@@ -118,13 +120,8 @@ export class EvaluationsService {
 
   async setResult(evaluationId: string, input: SetEvaluationResultInput) {
     return this.prisma.client.$transaction(async (transaction) => {
-      const evaluation = await transaction.evaluacion.findUnique({
-        where: { id: evaluationId },
-      });
+      const evaluation = await this.lockEvaluation(transaction, evaluationId);
 
-      if (!evaluation) {
-        throw new NotFoundException('Evaluation not found.');
-      }
       if (!RESULT_SPECIALTIES.includes(evaluation.especialidad)) {
         throw new BadRequestException(
           'Only CLINICA_MEDICA and PSICOLOGIA evaluations store a specialty result.',
@@ -133,6 +130,7 @@ export class EvaluationsService {
       if (evaluation.estado === EvaluacionEstado.COMPLETA) {
         throw new ConflictException('Evaluation is already complete.');
       }
+      await this.assertJourneyOpen(transaction, evaluation.recorridoId);
 
       const updated = await transaction.evaluacion.update({
         where: { id: evaluation.id },
@@ -145,18 +143,12 @@ export class EvaluationsService {
 
   async complete(evaluationId: string) {
     return this.prisma.client.$transaction(async (transaction) => {
-      const rows = await transaction.$queryRaw<LockedEvaluation[]>(
-        Prisma.sql`SELECT "id", "estado", "especialidad", "resultado"
-                   FROM "Evaluacion" WHERE "id" = ${evaluationId} FOR UPDATE`,
-      );
-      const evaluation = rows[0];
+      const evaluation = await this.lockEvaluation(transaction, evaluationId);
 
-      if (!evaluation) {
-        throw new NotFoundException('Evaluation not found.');
-      }
       if (evaluation.estado === EvaluacionEstado.COMPLETA) {
         throw new ConflictException('Evaluation is already complete.');
       }
+      await this.assertJourneyOpen(transaction, evaluation.recorridoId);
 
       const openPendings = await transaction.pendiente.count({
         where: { evaluacionId: evaluation.id, resueltoAt: null },
@@ -178,9 +170,44 @@ export class EvaluationsService {
           completadaAt: new Date(),
         },
       });
+      await storeJourneyAptitude(transaction, evaluation.recorridoId);
 
       return this.toEvaluationResponse(completed);
     });
+  }
+
+  private async lockEvaluation(
+    transaction: Prisma.TransactionClient,
+    evaluationId: string,
+  ): Promise<LockedEvaluation> {
+    const rows = await transaction.$queryRaw<LockedEvaluation[]>(
+      Prisma.sql`SELECT "id", "estado", "especialidad", "resultado", "recorridoId"
+                 FROM "Evaluacion" WHERE "id" = ${evaluationId} FOR UPDATE`,
+    );
+    const evaluation = rows[0];
+
+    if (!evaluation) {
+      throw new NotFoundException('Evaluation not found.');
+    }
+
+    return evaluation;
+  }
+
+  private async assertJourneyOpen(
+    transaction: Prisma.TransactionClient,
+    recorridoId: string,
+  ): Promise<void> {
+    const rows = await transaction.$queryRaw<{ estado: string }[]>(
+      Prisma.sql`SELECT "estado" FROM "Recorrido" WHERE "id" = ${recorridoId} FOR UPDATE`,
+    );
+    const journey = rows[0];
+
+    if (!journey) {
+      throw new NotFoundException('Journey not found.');
+    }
+    if (journey.estado === JourneyState.closed) {
+      throw new ConflictException('Journey is closed and cannot accept evaluation changes.');
+    }
   }
 
   private toPendingResponse(pending: Pendiente) {
