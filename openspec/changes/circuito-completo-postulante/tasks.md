@@ -50,13 +50,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: PR 3 — Agenda and Derivations (RF-11, RF-12)
 
-- [ ] 3.1 `src/agenda/reservations.service.ts` + `POST /reservations` (`inicio < fin`); only `RESERVADA` occupies.
-- [ ] 3.2 Migration C (`prisma/migrations/*_circuit_c`): `btree_gist` interval exclusion where `RESERVADA`; implement advisory-lock fallback, documented in `docs/first-functional-run.md`.
-- [ ] 3.3 Fulfill/cancel/reschedule/absent transitions; reprogram keeps `REPROGRAMADA` and links new `RESERVADA`.
-- [ ] 3.4 Fulfillment creates one `EN_ESPERA` follow-up linking evaluation, pending, recitation, journey; repeat idempotent.
-- [ ] 3.5 `src/derivations/`: same-journey origin, destination ≠ origin, expose journey state and ids.
-- [ ] 3.6 Test `test/integration/reservations.spec.ts`: overlap 409, concurrent overlap, slot release, reprogram chain, transition guards.
-- [ ] 3.7 Test `test/e2e/agenda-derivations.e2e-spec.ts`: concurrent duplicate fulfillment, circuit preservation, derivation create/reject/traceability.
+- [x] 3.1 `src/agenda/reservations.service.ts` + `POST /reservations` (`inicio < fin`); only `RESERVADA` occupies.
+- [x] 3.2 Migration C (`prisma/migrations/*_circuit_c`): `btree_gist` interval exclusion where `RESERVADA`; implement advisory-lock fallback, documented in `docs/first-functional-run.md`.
+- [x] 3.3 Fulfill/cancel/reschedule/absent transitions; reprogram keeps `REPROGRAMADA` and links new `RESERVADA`.
+- [x] 3.4 Fulfillment creates one `EN_ESPERA` follow-up linking evaluation, pending, recitation, journey; repeat idempotent.
+- [x] 3.5 `src/derivations/`: same-journey origin, destination ≠ origin, expose journey state and ids.
+- [x] 3.6 Test `test/integration/reservations.spec.ts`: overlap 409, concurrent overlap, slot release, reprogram chain, transition guards.
+- [x] 3.7 Test `test/e2e/agenda-derivations.e2e-spec.ts`: concurrent duplicate fulfillment, circuit preservation, derivation create/reject/traceability.
 
 ## Phase 4: PR 4 — Closure and Aptitude (RF-13, RF-14)
 

@@ -10,7 +10,7 @@ Adopt explicit circuit aggregates with dedicated feature modules (Approach 1). P
 |---|---|---|---|
 | Evaluation aggregate | New `Evaluacion` table, three rows created eagerly on registration | Reuse `Atencion` fields | Separates evaluation/report/result/journey state; makes the RF-13 gate and RF-14 matrix explicit and additive |
 | Specialty type | `Especialidad` enum on `Atencion`, required on `Profesional` | Keep free string | Free strings cannot enforce the three-specialty circuit |
-| Follow-up attention state | `EN_ESPERA` on fulfillment, explicit start later | Create `EN_ATENCION` | Preserves start-timestamp semantics and the one-active invariant |
+| Follow-up attention state | `EN_ESPERA` on fulfillment; `POST /journeys/:id/attentions` adopts it into `EN_ATENCION` | Create a second attention | Preserves start-timestamp semantics, the one-active invariant, and the "exactly one follow-up" rule |
 | `Esperando llamado` | Derived in the read model | Persisted state | Vocabulary lists only `En espera`/`En proceso`/`Cierre final` |
 | Overlap protection | `btree_gist` exclusion on `RESERVADA` | App-level check | DB-authoritative under concurrency |
 | Aptitude timing | Inside the third completion transaction | Separate call | Exactly one stored result when the gate opens |
@@ -75,7 +75,7 @@ N/A — no routing, shell, subprocess, VCS/PR automation, executable-file classi
 
 ## Migration / Rollout
 
-Four stacked PR slices: (1) foundation/evaluations/sequential attentions/read model; (2) pendings/recitations; (3) agenda/derivations; (4) closure/aptitude. Additive migrations: (A) enums/tables/nullable columns + backfill `Atencion.especialidad` (`Clinical`→`CLINICA_MEDICA`, unknown→`CLINICA_MEDICA`) and `Profesional.especialidad`; (B) NOT NULL tighten + hand-written indexes (preserve `atencion_one_active_per_applicant`; add `UNIQUE(recitacionId) WHERE recitacionId IS NOT NULL`); (C) `btree_gist` + `EXCLUDE USING gist ("profesionalId" WITH =, tsrange("inicio","fin") WITH &&) WHERE ("estado"='RESERVADA')`. Fallback: `pg_advisory_xact_lock(hashtext(profesionalId))` + overlap `SELECT`, still DB-authoritative. Enum removal is unsafe → rollback is revert + snapshot restore.
+Four stacked PR slices: (1) foundation/evaluations/sequential attentions/read model; (2) pendings/recitations; (3) agenda/derivations; (4) closure/aptitude. Additive migrations: (A) enums/tables/nullable columns + backfill `Atencion.especialidad` (`Clinical`→`CLINICA_MEDICA`, unknown→`CLINICA_MEDICA`) and `Profesional.especialidad`; (B) NOT NULL tighten + hand-written indexes (preserve `atencion_one_active_per_applicant`; add `UNIQUE(recitacionId) WHERE recitacionId IS NOT NULL`); (C) `btree_gist` + `EXCLUDE USING gist ("profesionalId" WITH =, tstzrange("inicio","fin") WITH &&) WHERE ("estado"='RESERVADA')`. Fallback: `pg_advisory_xact_lock(hashtext(profesionalId))` + overlap `SELECT`, still DB-authoritative. `POST /reservations` requires a recitation and re-uses it after cancel/absence. Enum removal is unsafe → rollback is revert + snapshot restore.
 
 ## Open Questions
 

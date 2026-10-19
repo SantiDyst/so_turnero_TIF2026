@@ -368,6 +368,7 @@ describe('recitation scheduling guards', () => {
       fechaHora: inicio,
     };
     const transaction = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       recorrido: {
         findUnique: jest.fn().mockResolvedValue({ id: 'journey-1' }),
         update: jest.fn(),
@@ -463,6 +464,22 @@ describe('recitation scheduling guards', () => {
         fin,
       }),
     ).rejects.toThrow(BadRequestException);
+    expect(transaction.recitacion.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a recitation whose slot overlaps an existing reservation', async () => {
+    const transaction = recitationTransaction();
+    transaction.$queryRaw.mockResolvedValueOnce([{ id: 'reservation-existing' }]);
+    const { service } = serviceWith(transaction);
+
+    await expect(
+      service.schedule('journey-1', {
+        pendingId: 'pending-1',
+        professionalId: 'professional-1',
+        inicio,
+        fin,
+      }),
+    ).rejects.toThrow(ConflictException);
     expect(transaction.recitacion.create).not.toHaveBeenCalled();
   });
 
