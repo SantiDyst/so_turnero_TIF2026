@@ -50,6 +50,8 @@ Adopt explicit circuit aggregates with dedicated feature modules (Approach 1). P
 | `PATCH /attentions/:id/finalize` | 200; 400 bad state, 409 inactive |
 | `POST /attentions/:id/pendings` | 201; 404 attention |
 | `PATCH /pendings/:id/resolve` | 200; 409 already resolved |
+| `PATCH /evaluations/:id/result` | 200; 400 Bioquímica or invalid result, 409 already complete |
+| `PATCH /evaluations/:id/complete` | 200; 409 open pendings, missing result, or already complete |
 | `POST /journeys/:id/recitations` | 201; recitation + reservation |
 | `POST /reservations` | 201; 409 overlap (23P01), 400 bad interval |
 | `PATCH /reservations/:id/fulfill\|cancel\|reschedule\|absent` | 200; 409 wrong source state; fulfill idempotent |
