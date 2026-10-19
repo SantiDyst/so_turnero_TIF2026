@@ -1,5 +1,11 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { AtencionEstado, DisponibilidadProfesional, Prisma, RecorridoEstado } from '@prisma/client';
+import {
+  AtencionEstado,
+  DisponibilidadProfesional,
+  Especialidad,
+  Prisma,
+  RecorridoEstado,
+} from '@prisma/client';
 
 import { ApplicantsController } from '../../src/applicants/applicants.controller';
 import { RegistrationService } from '../../src/applicants/registration.service';
@@ -57,7 +63,7 @@ describe('validation and state vocabulary', () => {
     const service = new AttentionCommandService(prisma, {} as ProfessionalsService);
 
     await expect(
-      service.start('journey', { specialty: 'Clinical', professionalId: 'professional' }),
+      service.start('journey', { specialty: Especialidad.CLINICA_MEDICA, professionalId: 'professional' }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });

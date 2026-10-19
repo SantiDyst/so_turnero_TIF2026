@@ -1,8 +1,21 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AtencionEstado, DisponibilidadProfesional, Prisma, RecorridoEstado } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  AtencionEstado,
+  DisponibilidadProfesional,
+  Especialidad,
+  EvaluacionEstado,
+  Prisma,
+  RecorridoEstado,
+} from '@prisma/client';
 
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { rethrowPrismaConflict } from '../shared/prisma-error.mapper';
 import {
   AttentionState,
   toAttentionState,
@@ -11,7 +24,7 @@ import {
 } from '../shared/state-vocabulary';
 
 export interface StartAttentionInput {
-  specialty: string;
+  specialty: Especialidad;
   professionalId: string;
 }
 
@@ -24,6 +37,11 @@ interface LockedAttention {
   estado: string;
   profesionalId: string;
 }
+
+const STARTABLE_JOURNEY_STATES: RecorridoEstado[] = [
+  RecorridoEstado.EN_ESPERA,
+  RecorridoEstado.EN_PROCESO,
+];
 
 @Injectable()
 export class AttentionCommandService {
@@ -41,8 +59,24 @@ export class AttentionCommandService {
           throw new NotFoundException('Journey not found.');
         }
 
-        if (journey.estado !== RecorridoEstado.EN_ESPERA) {
+        if (!STARTABLE_JOURNEY_STATES.includes(journey.estado)) {
           throw new ConflictException('Journey is not eligible to start an attention.');
+        }
+
+        const evaluation = await transaction.evaluacion.findUnique({
+          where: {
+            recorridoId_especialidad: {
+              recorridoId: journey.id,
+              especialidad: input.specialty,
+            },
+          },
+          select: { id: true, estado: true },
+        });
+        if (!evaluation) {
+          throw new BadRequestException('The journey has no evaluation for that specialty.');
+        }
+        if (evaluation.estado === EvaluacionEstado.COMPLETA) {
+          throw new ConflictException('The specialty evaluation is already complete.');
         }
 
         const professional = await this.professionalsService.lockById(
@@ -51,6 +85,9 @@ export class AttentionCommandService {
         );
         if (!this.professionalsService.isAvailable(professional)) {
           throw new ConflictException('Professional is not available.');
+        }
+        if (professional.especialidad !== input.specialty) {
+          throw new ConflictException('Professional specialty does not match the attention.');
         }
 
         const activeAttention = await transaction.atencion.findFirst({
@@ -70,6 +107,7 @@ export class AttentionCommandService {
             recorridoId: journey.id,
             postulanteId: journey.postulanteId,
             especialidad: input.specialty,
+            evaluacionId: evaluation.id,
             profesionalId: professional.id,
             estado: AtencionEstado.EN_ATENCION,
             startedAt,
@@ -84,16 +122,17 @@ export class AttentionCommandService {
 
         return {
           attentionId: attention.id,
+          evaluationId: attention.evaluacionId,
           state: toAttentionState(attention.estado),
           startedAt: attention.startedAt,
         };
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Applicant already has an active attention.');
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
       }
 
-      throw error;
+      rethrowPrismaConflict(error, 'Applicant already has an active attention.');
     }
   }
 

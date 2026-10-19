@@ -7,8 +7,9 @@ datasource db {
 }
 
 enum RecorridoEstado {
-  EN_ESPERA  @map("En espera")
-  EN_PROCESO @map("En proceso")
+  EN_ESPERA    @map("En espera")
+  EN_PROCESO   @map("En proceso")
+  CIERRE_FINAL @map("Cierre final")
 }
 
 enum AtencionEstado {
@@ -24,6 +25,31 @@ enum DisponibilidadProfesional {
   OCUPADO    @map("Ocupado")
 }
 
+enum Especialidad {
+  BIOQUIMICA
+  CLINICA_MEDICA
+  PSICOLOGIA
+}
+
+enum EvaluacionEstado {
+  PENDIENTE
+  COMPLETA
+}
+
+enum ReservaEstado {
+  RESERVADA
+  CUMPLIDA
+  CANCELADA
+  REPROGRAMADA
+  AUSENTE
+}
+
+enum ResultadoEspecialidad {
+  APTO_PLENO
+  APTO_CONDICIONAL
+  NO_APTO
+}
+
 model Postulante {
   id         String     @id @default(uuid())
   nombre     String
@@ -36,41 +62,161 @@ model Postulante {
 }
 
 model Recorrido {
-  id             String          @id @default(uuid())
-  postulanteId   String          @unique
-  numeroAtencion String          @unique
-  estado         RecorridoEstado @default(EN_ESPERA)
-  queuedAt       DateTime        @default(now())
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  postulante     Postulante      @relation(fields: [postulanteId], references: [id], onDelete: Cascade)
-  atenciones     Atencion[]
+  id               String           @id @default(uuid())
+  postulanteId     String           @unique
+  numeroAtencion   String           @unique
+  estado           RecorridoEstado  @default(EN_ESPERA)
+  queuedAt         DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  postulante       Postulante       @relation(fields: [postulanteId], references: [id], onDelete: Cascade)
+  atenciones       Atencion[]
+  evaluaciones     Evaluacion[]
+  recitaciones     Recitacion[]
+  derivaciones     Derivacion[]
+  resultadoAptitud ResultadoAptitud?
 }
 
 model Atencion {
-  id            String         @id @default(uuid())
-  recorridoId   String
-  postulanteId  String
-  especialidad  String
-  profesionalId String
-  estado        AtencionEstado
-  startedAt     DateTime?
-  endedAt       DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  recorrido     Recorrido      @relation(fields: [recorridoId], references: [id], onDelete: Restrict)
-  postulante    Postulante     @relation("AtencionesPostulante", fields: [postulanteId], references: [id], onDelete: Restrict)
-  profesional   Profesional    @relation(fields: [profesionalId], references: [id], onDelete: Restrict)
+  id                 String        @id @default(uuid())
+  recorridoId        String
+  postulanteId       String
+  especialidad       Especialidad
+  profesionalId      String
+  estado             AtencionEstado
+  startedAt          DateTime?
+  endedAt            DateTime?
+  evaluacionId       String?
+  atencionOrigenId   String?
+  recitacionId       String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  recorrido          Recorrido     @relation(fields: [recorridoId], references: [id], onDelete: Restrict)
+  postulante         Postulante    @relation("AtencionesPostulante", fields: [postulanteId], references: [id], onDelete: Restrict)
+  profesional        Profesional   @relation(fields: [profesionalId], references: [id], onDelete: Restrict)
+  evaluacion         Evaluacion?   @relation(fields: [evaluacionId], references: [id], onDelete: SetNull)
+  atencionOrigen     Atencion?     @relation("AtencionOrigen", fields: [atencionOrigenId], references: [id], onDelete: SetNull)
+  atencionesSiguientes Atencion[]  @relation("AtencionOrigen")
+  recitacion         Recitacion?   @relation("AtencionRecitacion", fields: [recitacionId], references: [id], onDelete: SetNull)
+  pendientesOrigen   Pendiente[]   @relation("PendienteAtencionOrigen")
+  derivaciones       Derivacion[]  @relation("DerivacionAtencionOrigen")
 
   @@index([recorridoId])
   @@index([profesionalId])
+  @@index([evaluacionId])
+  @@index([recitacionId])
 }
 
 model Profesional {
   id             String                    @id @default(uuid())
   nombre         String
+  especialidad   Especialidad
   disponibilidad DisponibilidadProfesional @default(DISPONIBLE)
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
   atenciones     Atencion[]
+  reservas       Reserva[]
+}
+
+model Evaluacion {
+  id           String                @id @default(uuid())
+  recorridoId  String
+  especialidad Especialidad
+  estado       EvaluacionEstado      @default(PENDIENTE)
+  resultado    ResultadoEspecialidad?
+  completadaAt DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  recorrido    Recorrido             @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
+  atenciones   Atencion[]
+  pendientes   Pendiente[]
+  recitaciones Recitacion[]
+
+  @@unique([recorridoId, especialidad])
+}
+
+model Pendiente {
+  id               String     @id @default(uuid())
+  evaluacionId     String
+  atencionOrigenId String?
+  motivo           String
+  fechaLimite      DateTime?
+  resueltoAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  evaluacion       Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  atencionOrigen   Atencion?  @relation("PendienteAtencionOrigen", fields: [atencionOrigenId], references: [id], onDelete: SetNull)
+  recitaciones     Recitacion[]
+
+  @@index([evaluacionId])
+  @@index([atencionOrigenId])
+}
+
+model Recitacion {
+  id           String       @id @default(uuid())
+  recorridoId  String
+  evaluacionId String
+  pendienteId  String
+  reservaId    String?      @unique
+  especialidad Especialidad
+  fechaHora    DateTime
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  recorrido    Recorrido    @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
+  evaluacion   Evaluacion   @relation(fields: [evaluacionId], references: [id], onDelete: Restrict)
+  pendiente    Pendiente    @relation(fields: [pendienteId], references: [id], onDelete: Restrict)
+  reserva      Reserva?     @relation("RecitacionCurrentReserva", fields: [reservaId], references: [id], onDelete: SetNull)
+  reservas     Reserva[]    @relation("ReservaRecitacion")
+  atenciones   Atencion[]   @relation("AtencionRecitacion")
+
+  @@index([recorridoId])
+  @@index([evaluacionId])
+  @@index([pendienteId])
+}
+
+model Reserva {
+  id                String        @id @default(uuid())
+  profesionalId     String
+  recitacionId      String?
+  inicio            DateTime      @db.Timestamptz(3)
+  fin               DateTime      @db.Timestamptz(3)
+  estado            ReservaEstado @default(RESERVADA)
+  reservaAnteriorId String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  profesional       Profesional   @relation(fields: [profesionalId], references: [id], onDelete: Restrict)
+  recitacion        Recitacion?   @relation("ReservaRecitacion", fields: [recitacionId], references: [id], onDelete: SetNull)
+  recitacionActual  Recitacion?   @relation("RecitacionCurrentReserva")
+  reservaAnterior   Reserva?      @relation("ReservaReprogramada", fields: [reservaAnteriorId], references: [id], onDelete: SetNull)
+  reservasNuevas    Reserva[]     @relation("ReservaReprogramada")
+
+  @@index([profesionalId])
+  @@index([recitacionId])
+  @@index([estado])
+}
+
+model Derivacion {
+  id                  String       @id @default(uuid())
+  recorridoId         String
+  atencionOrigenId    String
+  especialidadDestino Especialidad
+  motivo              String
+  createdAt           DateTime     @default(now())
+  recorrido           Recorrido    @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
+  atencionOrigen      Atencion     @relation("DerivacionAtencionOrigen", fields: [atencionOrigenId], references: [id], onDelete: Restrict)
+
+  @@index([recorridoId])
+  @@index([atencionOrigenId])
+}
+
+model ResultadoAptitud {
+  id                   String                @id @default(uuid())
+  recorridoId          String                @unique
+  resultadoClinico     ResultadoEspecialidad
+  resultadoPsicologico ResultadoEspecialidad
+  aptitudFinal         ResultadoEspecialidad
+  calculatedAt         DateTime              @default(now())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  recorrido            Recorrido             @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
 }
