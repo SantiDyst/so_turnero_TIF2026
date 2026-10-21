@@ -3,6 +3,7 @@ import {
   DisponibilidadProfesional,
   Especialidad,
   EvaluacionEstado,
+  InformeEstado,
   RecorridoEstado,
   ReservaEstado,
   ResultadoEspecialidad,
@@ -34,6 +35,11 @@ export const ProfessionalAvailability = {
 export const EvaluationState = {
   pending: 'PENDIENTE',
   complete: 'COMPLETA',
+} as const;
+
+export const InformeState = {
+  pending: 'Pendiente',
+  complete: 'Completo',
 } as const;
 
 export const ReservationState = {
@@ -89,6 +95,14 @@ const evaluationStates: Record<
   [EvaluacionEstado.COMPLETA]: EvaluationState.complete,
 };
 
+const informeStates: Record<
+  InformeEstado,
+  (typeof InformeState)[keyof typeof InformeState]
+> = {
+  [InformeEstado.PENDIENTE]: InformeState.pending,
+  [InformeEstado.COMPLETO]: InformeState.complete,
+};
+
 const reservationStates: Record<
   ReservaEstado,
   (typeof ReservationState)[keyof typeof ReservationState]
@@ -131,6 +145,12 @@ export function toEvaluationState(
   state: EvaluacionEstado,
 ): (typeof EvaluationState)[keyof typeof EvaluationState] {
   return evaluationStates[state];
+}
+
+export function toInformeState(
+  state: InformeEstado,
+): (typeof InformeState)[keyof typeof InformeState] {
+  return informeStates[state];
 }
 
 export function toReservationState(
