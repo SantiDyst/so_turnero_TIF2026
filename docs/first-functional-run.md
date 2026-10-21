@@ -40,7 +40,7 @@ Start an attention using an existing available professional ID. It returns `201`
 ```sh
 curl -i -X POST "$API_URL/journeys/<journey-id>/attentions" \
   -H 'content-type: application/json' \
-  -d '{"specialty":"Clinical","professionalId":"<professional-id>"}'
+  -d '{"specialty":"CLINICA_MEDICA","professionalId":"<professional-id>"}'
 ```
 
 Finalize an active attention. Only `Finalizada` and `Pendiente` are accepted (`200`); other values return `400`, and finalizing an inactive attention returns `409`. The journey remains `En proceso` and the professional returns to `Disponible`.
@@ -51,7 +51,33 @@ curl -i -X PATCH "$API_URL/attentions/<attention-id>/finalize" \
   -d '{"state":"Finalizada"}'
 ```
 
-Approved vocabulary is intentionally distinct: journey `En espera` / `En proceso`; attention `No iniciada` / `En espera` / `En atención` / `Finalizada` / `Pendiente`; professional `Disponible` / `Ocupado`.
+Approved vocabulary is intentionally distinct: journey `En espera` / `En proceso` / `Cierre final`; attention `No iniciada` / `En espera` / `En atención` / `Finalizada` / `Pendiente`; professional `Disponible` / `Ocupado`.
+
+## Aptitude and final closure
+
+The aptitude is calculated and stored automatically inside the transaction that completes the third evaluation. Nothing is stored after the first or second completion. The matrix only uses Clínica Médica and Psicología; Bioquímica never contributes a result:
+
+| Clínica Médica | Psicología | Final aptitude |
+|---|---|---|
+| `NO_APTO` | any | `NO_APTO` |
+| any | `NO_APTO` | `NO_APTO` |
+| `APTO_CONDICIONAL` | `APTO_PLENO` / `APTO_CONDICIONAL` | `APTO_CONDICIONAL` |
+| `APTO_PLENO` / `APTO_CONDICIONAL` | `APTO_CONDICIONAL` | `APTO_CONDICIONAL` |
+| `APTO_PLENO` | `APTO_PLENO` | `APTO_PLENO` |
+
+Meeting the gate does not close the journey. Read readiness first; `canClose` is `true` only when all three evaluations are `COMPLETA`, both specialty results exist, the aptitude is stored, and the journey is not already closed.
+
+```sh
+curl -i "$API_URL/journeys/<journey-id>/closure-readiness"
+```
+
+Close explicitly. The request locks the journey, re-checks the full gate, and returns `200` with state `Cierre final`; it returns `409` when any evaluation is not `COMPLETA`, a result is missing, the aptitude is not stored, or the journey is already closed.
+
+```sh
+curl -i -X POST "$API_URL/journeys/<journey-id>/close"
+```
+
+After `Cierre final`, further evaluation results/completions and attention starts return `409`. The journey remains queryable by identifier and `GET /journeys` exposes the stored aptitude; the waiting queue keeps only `En espera` journeys.
 
 ## Agenda fallback
 
@@ -74,4 +100,4 @@ Rollback boundary: first roll back the API deployment to the prior Vercel deploy
 
 ## Excluded scope
 
-This slice deliberately excludes authentication/authorization, pending-work management beyond finalization as `Pendiente`, reservations, reports, frontend/UI, recitation, referral, aptitude, closure, certificates, and real personal data.
+This circuit deliberately excludes authentication/authorization, RF-15 reports, RF-16 certificates, frontend/UI, aptitude recalculation, and real personal data.

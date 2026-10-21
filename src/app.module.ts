@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AgendaModule } from './agenda/agenda.module';
 import { AppController } from './app.controller';
+import { AptitudeModule } from './aptitude/aptitude.module';
 import { ApplicantsModule } from './applicants/applicants.module';
 import { AttentionsModule } from './attentions/attentions.module';
 import { DerivationsModule } from './derivations/derivations.module';
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     EvaluationsModule,
     AgendaModule,
     DerivationsModule,
+    AptitudeModule,
   ],
   controllers: [AppController],
 })

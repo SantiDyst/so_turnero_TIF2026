@@ -60,9 +60,9 @@ Chain strategy: stacked-to-main
 
 ## Phase 4: PR 4 — Closure and Aptitude (RF-13, RF-14)
 
-- [ ] 4.1 `src/aptitude/aptitude.service.ts`: `NO_APTO` → `APTO_CONDICIONAL` → `APTO_PLENO`; ignore Bioquímica; upsert per journey.
-- [ ] 4.2 Store aptitude in the third completion transaction; nothing earlier.
-- [ ] 4.3 `GET /journeys/:id/closure-readiness` + locked `POST /journeys/:id/close` (409 until gate passes).
-- [ ] 4.4 Test `test/integration/aptitude.spec.ts`: matrix rows, no early store, one result, complete read model, post-close 409, closure reject/eligible.
-- [ ] 4.5 Test `test/integration/closure-race.spec.ts`: one `CIERRE_FINAL`.
-- [ ] 4.6 Update `docs/first-functional-run.md`; run `npm test`, `npm run build`.
+- [x] 4.1 `src/aptitude/aptitude.service.ts`: `NO_APTO` → `APTO_CONDICIONAL` → `APTO_PLENO`; ignore Bioquímica; upsert per journey.
+- [x] 4.2 Store aptitude in the third completion transaction; nothing earlier.
+- [x] 4.3 `GET /journeys/:id/closure-readiness` + locked `POST /journeys/:id/close` (409 until gate passes).
+- [x] 4.4 Test `test/integration/aptitude.spec.ts`: matrix rows, no early store, one result, complete read model, post-close 409, closure reject/eligible.
+- [x] 4.5 Test `test/integration/closure-race.spec.ts`: one `CIERRE_FINAL`.
+- [x] 4.6 Update `docs/first-functional-run.md`; run `npm test`, `npm run build`.

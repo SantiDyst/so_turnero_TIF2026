@@ -34,6 +34,7 @@ function evaluationsServiceMock() {
 function evaluationRow(overrides: AnyRecord = {}): AnyRecord {
   return {
     id: 'evaluation-1',
+    recorridoId: 'journey-1',
     estado: EvaluacionEstado.PENDIENTE,
     especialidad: Especialidad.CLINICA_MEDICA,
     resultado: null,
@@ -47,6 +48,7 @@ function completionTransaction(row: AnyRecord, openPendings = 0) {
     $queryRaw: jest.fn().mockResolvedValue([row]),
     pendiente: { count: jest.fn().mockResolvedValue(openPendings) },
     evaluacion: {
+      findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(async ({ data }: { data: AnyRecord }) => ({ ...row, ...data })),
     },
   };
@@ -246,11 +248,10 @@ describe('evaluation completion gate', () => {
 
 describe('evaluation result storage', () => {
   it('rejects a result on a Bioquimica evaluation', async () => {
+    const row = evaluationRow({ especialidad: Especialidad.BIOQUIMICA });
     const transaction = {
+      $queryRaw: jest.fn().mockResolvedValue([row]),
       evaluacion: {
-        findUnique: jest.fn().mockResolvedValue(
-          evaluationRow({ especialidad: Especialidad.BIOQUIMICA }),
-        ),
         update: jest.fn(),
       },
     };
@@ -265,8 +266,8 @@ describe('evaluation result storage', () => {
   it('stores a result without completing the evaluation', async () => {
     const row = evaluationRow({ especialidad: Especialidad.PSICOLOGIA });
     const transaction = {
+      $queryRaw: jest.fn().mockResolvedValue([row]),
       evaluacion: {
-        findUnique: jest.fn().mockResolvedValue(row),
         update: jest.fn(async ({ data }: { data: AnyRecord }) => ({ ...row, ...data })),
       },
     };

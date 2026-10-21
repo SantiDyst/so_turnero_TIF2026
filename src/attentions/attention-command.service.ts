@@ -53,11 +53,16 @@ export class AttentionCommandService {
   async start(journeyId: string, input: StartAttentionInput) {
     try {
       return await this.prisma.client.$transaction(async (transaction) => {
-        const journey = await transaction.recorrido.findUnique({ where: { id: journeyId } });
-
-        if (!journey) {
+        const journeyRows = await transaction.$queryRaw<{ id: string }[]>(
+          Prisma.sql`SELECT "id" FROM "Recorrido" WHERE "id" = ${journeyId} FOR UPDATE`,
+        );
+        if (!journeyRows[0]) {
           throw new NotFoundException('Journey not found.');
         }
+
+        const journey = await transaction.recorrido.findUniqueOrThrow({
+          where: { id: journeyId },
+        });
 
         if (!STARTABLE_JOURNEY_STATES.includes(journey.estado)) {
           throw new ConflictException('Journey is not eligible to start an attention.');
