@@ -53,6 +53,10 @@ curl -i -X PATCH "$API_URL/attentions/<attention-id>/finalize" \
 
 Approved vocabulary is intentionally distinct: journey `En espera` / `En proceso`; attention `No iniciada` / `En espera` / `En atención` / `Finalizada` / `Pendiente`; professional `Disponible` / `Ocupado`.
 
+## Agenda fallback
+
+Migration C installs `btree_gist` and an exclusion constraint that rejects overlapping `RESERVADA` reservations for the same professional. The runtime does not depend on that constraint alone: every reservation create/reschedule and every recitation scheduling request locks the professional row and runs an overlap `SELECT` before writing (create/reschedule additionally take `pg_advisory_xact_lock(hashtext(profesionalId))`). If `CREATE EXTENSION btree_gist` is unavailable on a target database, skip only the constraint from migration C; the row lock plus overlap query still serializes conflicting requests and maps the loser to `409`.
+
 ## Deployment and persistence
 
 Neon provides two environment variables, never literal connection strings in source: `DATABASE_URL` is the pooled (`-pooler`) runtime URL configured in Vercel, and `DIRECT_URL` is the direct Neon URL used only by Prisma CLI migrations. Apply migrations before deploying the API:

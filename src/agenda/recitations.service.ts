@@ -8,7 +8,9 @@ import { ReservaEstado } from '@prisma/client';
 
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { rethrowPrismaConflict } from '../shared/prisma-error.mapper';
 import { toReservationState } from '../shared/state-vocabulary';
+import { assertAgendaSlotFree } from './agenda-slot';
 
 export interface ScheduleRecitationInput {
   pendingId: string;
@@ -26,6 +28,14 @@ export class RecitationsService {
   ) {}
 
   async schedule(journeyId: string, input: ScheduleRecitationInput) {
+    try {
+      return await this.scheduleTransaction(journeyId, input);
+    } catch (error) {
+      rethrowPrismaConflict(error, 'The professional already has a reservation for that slot.');
+    }
+  }
+
+  private async scheduleTransaction(journeyId: string, input: ScheduleRecitationInput) {
     return this.prisma.client.$transaction(async (transaction) => {
       const journey = await transaction.recorrido.findUnique({
         where: { id: journeyId },
@@ -65,6 +75,8 @@ export class RecitationsService {
           'Professional specialty does not match the evaluation specialty.',
         );
       }
+
+      await assertAgendaSlotFree(transaction, professional.id, input.inicio, input.fin);
 
       const recitation = await transaction.recitacion.create({
         data: {

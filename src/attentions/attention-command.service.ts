@@ -102,17 +102,39 @@ export class AttentionCommandService {
         }
 
         const startedAt = new Date();
-        const attention = await transaction.atencion.create({
-          data: {
+        const pendingFollowUps = await transaction.atencion.findMany({
+          where: {
             recorridoId: journey.id,
-            postulanteId: journey.postulanteId,
-            especialidad: input.specialty,
             evaluacionId: evaluation.id,
-            profesionalId: professional.id,
-            estado: AtencionEstado.EN_ATENCION,
-            startedAt,
+            estado: AtencionEstado.EN_ESPERA,
           },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, recitacionId: true },
         });
+        const followUp =
+          pendingFollowUps.find((candidate) => candidate.recitacionId !== null) ??
+          pendingFollowUps[0];
+
+        const attention = followUp
+          ? await transaction.atencion.update({
+              where: { id: followUp.id },
+              data: {
+                estado: AtencionEstado.EN_ATENCION,
+                profesionalId: professional.id,
+                startedAt,
+              },
+            })
+          : await transaction.atencion.create({
+              data: {
+                recorridoId: journey.id,
+                postulanteId: journey.postulanteId,
+                especialidad: input.specialty,
+                evaluacionId: evaluation.id,
+                profesionalId: professional.id,
+                estado: AtencionEstado.EN_ATENCION,
+                startedAt,
+              },
+            });
 
         await transaction.recorrido.update({
           where: { id: journey.id },
