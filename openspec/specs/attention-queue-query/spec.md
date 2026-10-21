@@ -4,7 +4,7 @@
 
 ### Requirement: Query the waiting queue
 
-The system MUST expose the current queue and MUST identify each entry by applicant record, attention number, and journey state. A newly registered journey MUST appear as `En espera` until a valid attention start changes it.
+The system MUST expose a queue containing only journeys in `En espera` and MUST identify each entry by applicant record, attention number, and journey state. A journey MUST leave the queue when a valid attention start moves it to `En proceso`; it MUST remain queryable by identifier.
 
 #### Scenario: List a newly registered applicant
 
@@ -13,12 +13,12 @@ The system MUST expose the current queue and MUST identify each entry by applica
 - THEN the applicant MUST appear with the assigned attention number
 - AND the journey state MUST be `En espera`
 
-#### Scenario: Reflect a started attention
+#### Scenario: Remove a started journey from the queue
 
 - GIVEN a queued applicant has successfully started an attention
 - WHEN the queue is queried again
-- THEN the response MUST reflect that the journey is `En proceso`
-- AND MUST NOT present the applicant as still waiting for that same start
+- THEN the journey MUST NOT appear in the waiting queue
+- AND querying it by identifier MUST report `En proceso`
 
 ### Requirement: Find a journey by either supported identifier
 
@@ -44,7 +44,7 @@ The system MUST return the same journey when queried by its applicant record ide
 
 ### Requirement: Report only the approved state vocabulary
 
-Queries MUST represent journey state as `En espera` or `En proceso`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; and professional availability as `Disponible` or `Ocupado`.
+Queries MUST represent journey state as `En espera`, `En proceso`, or `CIERRE_FINAL`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; evaluation state as `PENDIENTE` or `COMPLETA`; reservation state as `RESERVADA`, `CUMPLIDA`, `CANCELADA`, `REPROGRAMADA`, or `AUSENTE`; aptitude as `APTO_PLENO`, `APTO_CONDICIONAL`, or `NO_APTO`; and professional availability as `Disponible` or `Ocupado`.
 
 #### Scenario: Query after a state transition
 
@@ -52,6 +52,13 @@ Queries MUST represent journey state as `En espera` or `En proceso`; attention s
 - WHEN the related journey is queried
 - THEN the response MUST show the committed approved state values
 - AND MUST NOT conflate journey, attention, or professional state
+
+#### Scenario: Report circuit states without conflation
+
+- GIVEN evaluations, reservations, and an aptitude exist
+- WHEN the journey is queried
+- THEN each category MUST use its approved vocabulary
+- AND an evaluation or reservation state MUST NOT be reported as the journey state
 
 ### Requirement: Provide open persistent queries for this slice
 
@@ -62,6 +69,29 @@ The registration, queue/query, start, and finalization capabilities MUST be call
 - GIVEN a journey was committed before a backend restart
 - WHEN a client queries it without authentication credentials after restart
 - THEN the system MUST return its latest persisted state
+
+### Requirement: Expose the complete circuit read model
+
+The journey read model MUST expose its evaluations, pendings, recitations and reservations, derivations, and stored aptitude. For an `En proceso` journey with no active attention and pending evaluations, it MUST derive `Esperando llamado`; derived state MUST NOT be persisted.
+
+#### Scenario: Read the complete circuit
+
+- GIVEN a journey has evaluations, pendings, reservations, derivations, and aptitude
+- WHEN it is queried by identifier
+- THEN all those records MUST be included with their approved states
+
+#### Scenario: Derive Esperando llamado
+
+- GIVEN a journey is `En proceso`, has no active attention, and has a pending evaluation
+- WHEN it is queried
+- THEN the read model MUST show `Esperando llamado`
+- AND no persisted journey state MUST be changed
+
+#### Scenario: Drop the derived value after the next start
+
+- GIVEN an `Esperando llamado` journey starts its next attention
+- WHEN it is queried
+- THEN the derived value MUST no longer be present
 
 ## Scope and Traceability
 
