@@ -42,11 +42,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: PR 2 — Pendings, Gate, Recitations (RF-10)
 
-- [ ] 2.1 `src/evaluations/`: pending create/resolve routes (409 repeat); register in `src/app.module.ts`.
-- [ ] 2.2 Completion gate: zero open pendings; Clínica/Psicología non-`PENDIENTE` result; Bioquímica exempt; store it.
-- [ ] 2.3 `src/agenda/recitations.service.ts` + `POST /journeys/:id/recitations`: links pending/evaluation/journey; creates `RESERVADA`, no state changes.
-- [ ] 2.4 Test `test/unit/pendings-recitations.spec.ts`: validation and gate errors.
-- [ ] 2.5 Test `test/e2e/pendings.e2e-spec.ts`: resolve one of two, recitation leaves states unchanged, finalize/report keeps `PENDIENTE`, gate blocked/allowed.
+- [x] 2.1 `src/evaluations/`: pending create/resolve routes (409 repeat); register in `src/app.module.ts`.
+- [x] 2.2 Completion gate: zero open pendings; Clínica/Psicología non-`PENDIENTE` result; Bioquímica exempt; store it.
+- [x] 2.3 `src/agenda/recitations.service.ts` + `POST /journeys/:id/recitations`: links pending/evaluation/journey; creates `RESERVADA`, no state changes.
+- [x] 2.4 Test `test/unit/pendings-recitations.spec.ts`: validation and gate errors.
+- [x] 2.5 Test `test/e2e/pendings.e2e-spec.ts`: resolve one of two, recitation leaves states unchanged, finalize/report keeps `PENDIENTE`, gate blocked/allowed.
 
 ## Phase 3: PR 3 — Agenda and Derivations (RF-11, RF-12)
 

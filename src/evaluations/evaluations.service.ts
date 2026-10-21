@@ -1,0 +1,207 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  Especialidad,
+  EvaluacionEstado,
+  Evaluacion,
+  Pendiente,
+  Prisma,
+  ResultadoEspecialidad,
+} from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { toEvaluationState } from '../shared/state-vocabulary';
+
+export interface CreatePendingInput {
+  motivo: string;
+  fechaLimite: Date | null;
+}
+
+export interface SetEvaluationResultInput {
+  resultado: ResultadoEspecialidad;
+}
+
+interface LockedPending {
+  id: string;
+  resueltoAt: Date | null;
+}
+
+interface LockedEvaluation {
+  id: string;
+  estado: EvaluacionEstado;
+  especialidad: Especialidad;
+  resultado: ResultadoEspecialidad | null;
+}
+
+const RESULT_SPECIALTIES: readonly Especialidad[] = [
+  Especialidad.CLINICA_MEDICA,
+  Especialidad.PSICOLOGIA,
+];
+
+@Injectable()
+export class EvaluationsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createPending(attentionId: string, input: CreatePendingInput) {
+    return this.prisma.client.$transaction(async (transaction) => {
+      const attention = await transaction.atencion.findUnique({
+        where: { id: attentionId },
+        select: {
+          id: true,
+          recorridoId: true,
+          especialidad: true,
+          evaluacionId: true,
+        },
+      });
+
+      if (!attention) {
+        throw new NotFoundException('Attention not found.');
+      }
+
+      let evaluationId = attention.evaluacionId;
+      if (!evaluationId) {
+        const evaluation = await transaction.evaluacion.findUnique({
+          where: {
+            recorridoId_especialidad: {
+              recorridoId: attention.recorridoId,
+              especialidad: attention.especialidad,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (!evaluation) {
+          throw new BadRequestException('The attention has no associated evaluation.');
+        }
+        evaluationId = evaluation.id;
+      }
+
+      const pending = await transaction.pendiente.create({
+        data: {
+          evaluacionId: evaluationId,
+          atencionOrigenId: attention.id,
+          motivo: input.motivo,
+          fechaLimite: input.fechaLimite,
+        },
+      });
+
+      return this.toPendingResponse(pending);
+    });
+  }
+
+  async resolvePending(pendingId: string) {
+    return this.prisma.client.$transaction(async (transaction) => {
+      const rows = await transaction.$queryRaw<LockedPending[]>(
+        Prisma.sql`SELECT "id", "resueltoAt" FROM "Pendiente" WHERE "id" = ${pendingId} FOR UPDATE`,
+      );
+      const pending = rows[0];
+
+      if (!pending) {
+        throw new NotFoundException('Pending not found.');
+      }
+      if (pending.resueltoAt !== null) {
+        throw new ConflictException('Pending is already resolved.');
+      }
+
+      const resolved = await transaction.pendiente.update({
+        where: { id: pending.id },
+        data: { resueltoAt: new Date() },
+      });
+
+      return this.toPendingResponse(resolved);
+    });
+  }
+
+  async setResult(evaluationId: string, input: SetEvaluationResultInput) {
+    return this.prisma.client.$transaction(async (transaction) => {
+      const evaluation = await transaction.evaluacion.findUnique({
+        where: { id: evaluationId },
+      });
+
+      if (!evaluation) {
+        throw new NotFoundException('Evaluation not found.');
+      }
+      if (!RESULT_SPECIALTIES.includes(evaluation.especialidad)) {
+        throw new BadRequestException(
+          'Only CLINICA_MEDICA and PSICOLOGIA evaluations store a specialty result.',
+        );
+      }
+      if (evaluation.estado === EvaluacionEstado.COMPLETA) {
+        throw new ConflictException('Evaluation is already complete.');
+      }
+
+      const updated = await transaction.evaluacion.update({
+        where: { id: evaluation.id },
+        data: { resultado: input.resultado },
+      });
+
+      return this.toEvaluationResponse(updated);
+    });
+  }
+
+  async complete(evaluationId: string) {
+    return this.prisma.client.$transaction(async (transaction) => {
+      const rows = await transaction.$queryRaw<LockedEvaluation[]>(
+        Prisma.sql`SELECT "id", "estado", "especialidad", "resultado"
+                   FROM "Evaluacion" WHERE "id" = ${evaluationId} FOR UPDATE`,
+      );
+      const evaluation = rows[0];
+
+      if (!evaluation) {
+        throw new NotFoundException('Evaluation not found.');
+      }
+      if (evaluation.estado === EvaluacionEstado.COMPLETA) {
+        throw new ConflictException('Evaluation is already complete.');
+      }
+
+      const openPendings = await transaction.pendiente.count({
+        where: { evaluacionId: evaluation.id, resueltoAt: null },
+      });
+      if (openPendings > 0) {
+        throw new ConflictException('Evaluation has open pendings.');
+      }
+
+      if (RESULT_SPECIALTIES.includes(evaluation.especialidad) && !evaluation.resultado) {
+        throw new ConflictException(
+          'A specialty result is required before completing this evaluation.',
+        );
+      }
+
+      const completed = await transaction.evaluacion.update({
+        where: { id: evaluation.id },
+        data: {
+          estado: EvaluacionEstado.COMPLETA,
+          completadaAt: new Date(),
+        },
+      });
+
+      return this.toEvaluationResponse(completed);
+    });
+  }
+
+  private toPendingResponse(pending: Pendiente) {
+    return {
+      id: pending.id,
+      evaluationId: pending.evaluacionId,
+      originAttentionId: pending.atencionOrigenId,
+      reason: pending.motivo,
+      limitDate: pending.fechaLimite,
+      resolvedAt: pending.resueltoAt,
+      createdAt: pending.createdAt,
+    };
+  }
+
+  private toEvaluationResponse(evaluation: Evaluacion) {
+    return {
+      id: evaluation.id,
+      specialty: evaluation.especialidad,
+      state: toEvaluationState(evaluation.estado),
+      result: evaluation.resultado,
+      completedAt: evaluation.completadaAt,
+    };
+  }
+}
