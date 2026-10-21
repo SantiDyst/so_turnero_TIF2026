@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AtencionEstado, EvaluacionEstado, RecorridoEstado } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { buildJourneyReports } from '../reports/report.view';
 import {
   DerivedJourneyState,
   toAttentionState,
@@ -53,6 +54,14 @@ export class QueueQueryService {
           orderBy: { especialidad: 'asc' },
           include: {
             pendientes: { orderBy: { createdAt: 'asc' } },
+            informe: {
+              include: {
+                profesional: { select: { id: true, nombre: true } },
+                atencion: {
+                  select: { profesional: { select: { id: true, nombre: true } } },
+                },
+              },
+            },
           },
         },
         recitaciones: {
@@ -61,6 +70,9 @@ export class QueueQueryService {
         },
         derivaciones: { orderBy: { createdAt: 'asc' } },
         resultadoAptitud: true,
+        certificado: {
+          include: { profesional: { select: { id: true, nombre: true } } },
+        },
       },
     });
 
@@ -83,6 +95,12 @@ export class QueueQueryService {
       journey.estado === RecorridoEstado.EN_PROCESO && !hasActiveAttention && hasPendingEvaluation
         ? DerivedJourneyState.waitingForCall
         : null;
+
+    const applicant = {
+      id: journey.postulante.id,
+      nombre: journey.postulante.nombre,
+      apellido: journey.postulante.apellido,
+    };
 
     return {
       applicant: {
@@ -159,11 +177,31 @@ export class QueueQueryService {
       aptitude: journey.resultadoAptitud
         ? {
             clinicalResult: toAptitudeState(journey.resultadoAptitud.resultadoClinico),
-            psychologicalResult: toAptitudeState(
-              journey.resultadoAptitud.resultadoPsicologico,
-            ),
+            psychologicalResult: toAptitudeState(journey.resultadoAptitud.resultadoPsicologico),
             finalAptitude: toAptitudeState(journey.resultadoAptitud.aptitudFinal),
             calculatedAt: journey.resultadoAptitud.calculatedAt,
+          }
+        : null,
+      reports: buildJourneyReports({
+        numeroAtencion: journey.numeroAtencion,
+        postulante: applicant,
+        evaluaciones: journey.evaluaciones,
+        resultadoAptitud: journey.resultadoAptitud,
+      }),
+      certificate: journey.certificado
+        ? {
+            id: journey.certificado.id,
+            identifier: journey.certificado.identificador,
+            attentionNumber: journey.numeroAtencion,
+            applicant,
+            finalAptitude: toAptitudeState(journey.certificado.aptitudFinal),
+            issuedAt: journey.certificado.emitidoAt,
+            responsibleProfessional: journey.certificado.profesional
+              ? {
+                  id: journey.certificado.profesional.id,
+                  nombre: journey.certificado.profesional.nombre,
+                }
+              : null,
           }
         : null,
     };

@@ -51,7 +51,7 @@ curl -i -X PATCH "$API_URL/attentions/<attention-id>/finalize" \
   -d '{"state":"Finalizada"}'
 ```
 
-Approved vocabulary is intentionally distinct: journey `En espera` / `En proceso` / `Cierre final`; attention `No iniciada` / `En espera` / `En atención` / `Finalizada` / `Pendiente`; professional `Disponible` / `Ocupado`.
+Approved vocabulary is intentionally distinct: journey `En espera` / `En proceso` / `Cierre final`; attention `No iniciada` / `En espera` / `En atención` / `Finalizada` / `Pendiente`; report `Pendiente` / `Completo` under `reportState`; professional `Disponible` / `Ocupado`.
 
 ## Aptitude and final closure
 
@@ -77,7 +77,27 @@ Close explicitly. The request locks the journey, re-checks the full gate, and re
 curl -i -X POST "$API_URL/journeys/<journey-id>/close"
 ```
 
-After `Cierre final`, further evaluation results/completions and attention starts return `409`. The journey remains queryable by identifier and `GET /journeys` exposes the stored aptitude; the waiting queue keeps only `En espera` journeys.
+After `Cierre final`, further evaluation results/completions and attention starts return `409`. The journey remains queryable by identifier and `GET /journeys` exposes the stored aptitude plus `reports[]` and `certificate: null`; the waiting queue keeps only `En espera` journeys.
+
+## Specialty reports (RF-15)
+
+Every journey owns exactly one report per specialty. Save a report from an existing attention; recitations update the same row instead of creating another.
+
+```sh
+curl -i -X PUT "$API_URL/attentions/<attention-id>/report" \
+  -H 'content-type: application/json' \
+  -d '{"observations":"Lab values within range","state":"Completo"}'
+```
+
+`state` is `Pendiente` or `Completo`; `Completo` requires non-empty observations (`400`). An unknown attention returns `404`, and a journey in `Cierre final` returns `409`. Saving a report never completes an evaluation, resolves a pending, starts an attention, or changes closure readiness or aptitude. Writes are rejected after closure while reads stay available.
+
+```sh
+curl -i "$API_URL/journeys/<journey-id>/reports"
+```
+
+The read always returns three entries ordered `BIOQUIMICA`, `CLINICA_MEDICA`, `PSICOLOGIA`. Each entry includes the applicant, `attentionNumber`, `originArea: "Admisión"`, `responsible` (`area` plus `professional` or `null`), `observations`, `specialtyResult` (`null` for Bioquímica), `finalAptitude` (`null` until stored), `reportState`, and `updatedAt`. Unwritten specialties appear with `reportState: "Pendiente"` and null placeholders.
+
+`GET /journeys?attentionNumber=AT-1042` also returns `reports[]` and `certificate` without removing or renaming any existing key. `reportState` stays separate from the attention `state` even when both read `Pendiente`; `certificate` is `null` until issuance.
 
 ## Agenda fallback
 
@@ -100,4 +120,4 @@ Rollback boundary: first roll back the API deployment to the prior Vercel deploy
 
 ## Excluded scope
 
-This circuit deliberately excludes authentication/authorization, RF-15 reports, RF-16 certificates, frontend/UI, aptitude recalculation, and real personal data.
+This circuit deliberately excludes authentication/authorization, RF-16 certificate issuance (covered by the next slice), frontend/UI, aptitude recalculation, and real personal data.

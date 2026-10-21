@@ -262,4 +262,141 @@ describe('first functional journey HTTP API', () => {
     expect(journey.estado).toBe(RecorridoEstado.EN_PROCESO);
     expect(released.disponibilidad).toBe(DisponibilidadProfesional.DISPONIBLE);
   });
+
+  it('reads three ordered reports, a null certificate, and every existing key', async () => {
+    const registered = await registerApplicant('E2E Reports');
+    const specialties = [
+      Especialidad.BIOQUIMICA,
+      Especialidad.CLINICA_MEDICA,
+      Especialidad.PSICOLOGIA,
+    ] as const;
+    const attentionIds: Partial<Record<Especialidad, string>> = {};
+
+    for (const specialty of specialties) {
+      const professional = await prisma.client.profesional.create({
+        data: { nombre: `Dr. E2E Reports ${specialty}`, especialidad: specialty },
+      });
+      const started = await request(app.getHttpServer())
+        .post(`/journeys/${registered.journey.id}/attentions`)
+        .send({ specialty, professionalId: professional.id })
+        .expect(201);
+      attentionIds[specialty] = started.body.attentionId;
+
+      await request(app.getHttpServer())
+        .patch(`/attentions/${started.body.attentionId}/finalize`)
+        .send({
+          state: specialty === Especialidad.CLINICA_MEDICA ? 'Pendiente' : 'Finalizada',
+        })
+        .expect(200);
+    }
+
+    await request(app.getHttpServer())
+      .put(`/attentions/${attentionIds[Especialidad.BIOQUIMICA]}/report`)
+      .send({ observations: 'Lab values within range', state: 'Completo' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .put(`/attentions/${attentionIds[Especialidad.CLINICA_MEDICA]}/report`)
+      .send({ observations: 'Draft clinical note', state: 'Pendiente' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .get('/journeys')
+      .query({ applicantId: registered.applicant.id })
+      .expect(200);
+    const body = response.body as {
+      reports: {
+        reportId: string | null;
+        evaluationId: string | null;
+        specialty: string;
+        reportState: string;
+        attentionNumber: string;
+        originArea: string;
+        observations: string | null;
+        specialtyResult: string | null;
+        finalAptitude: string | null;
+        responsible: { area: string; professional: { id: string } | null };
+        updatedAt: string | null;
+      }[];
+      certificate: unknown;
+      attentions: { state: string }[];
+      journey: { state: string; derivedState: string | null };
+    };
+
+    expect(body.reports).toHaveLength(3);
+    expect(body.reports.map((report) => report.specialty)).toEqual([
+      Especialidad.BIOQUIMICA,
+      Especialidad.CLINICA_MEDICA,
+      Especialidad.PSICOLOGIA,
+    ]);
+    expect(body.reports.map((report) => report.reportState)).toEqual([
+      'Completo',
+      'Pendiente',
+      'Pendiente',
+    ]);
+    expect(body.reports.map((report) => report.reportId)).toEqual([
+      expect.any(String),
+      expect.any(String),
+      null,
+    ]);
+
+    const [biochemistry, clinical, psychology] = body.reports;
+    expect(biochemistry).toEqual(
+      expect.objectContaining({
+        evaluationId: expect.any(String),
+        attentionNumber: registered.journey.attentionNumber,
+        originArea: 'Admisión',
+        observations: 'Lab values within range',
+        specialtyResult: null,
+        finalAptitude: null,
+        updatedAt: expect.any(String),
+      }),
+    );
+    expect(biochemistry?.responsible).toEqual({
+      area: Especialidad.BIOQUIMICA,
+      professional: { id: expect.any(String), nombre: expect.any(String) },
+    });
+    expect(clinical).toEqual(
+      expect.objectContaining({
+        reportState: 'Pendiente',
+        observations: 'Draft clinical note',
+      }),
+    );
+    expect(psychology).toEqual(
+      expect.objectContaining({
+        reportId: null,
+        observations: null,
+        updatedAt: null,
+      }),
+    );
+
+    expect(body.certificate).toBeNull();
+    expect(body.journey).toEqual(
+      expect.objectContaining({
+        state: 'En proceso',
+        derivedState: 'Esperando llamado',
+      }),
+    );
+    expect(body.attentions.map((attention) => attention.state)).toEqual([
+      'Finalizada',
+      'Pendiente',
+      'Finalizada',
+    ]);
+    expect(clinical).not.toHaveProperty('state');
+
+    expect(Object.keys(body).sort()).toEqual(
+      [
+        'applicant',
+        'aptitude',
+        'attentions',
+        'certificate',
+        'derivations',
+        'evaluations',
+        'journey',
+        'pendings',
+        'recitations',
+        'reports',
+        'reservations',
+      ].sort(),
+    );
+  });
 });
