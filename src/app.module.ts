@@ -10,6 +10,7 @@ import { EvaluationsModule } from './evaluations/evaluations.module';
 import { JourneysModule } from './journeys/journeys.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AgendaModule,
     DerivationsModule,
     AptitudeModule,
+    ReportsModule,
   ],
   controllers: [AppController],
 })

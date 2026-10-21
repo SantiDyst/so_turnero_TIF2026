@@ -50,6 +50,11 @@ enum ResultadoEspecialidad {
   NO_APTO
 }
 
+enum InformeEstado {
+  PENDIENTE
+  COMPLETO
+}
+
 model Postulante {
   id         String     @id @default(uuid())
   nombre     String
@@ -75,6 +80,7 @@ model Recorrido {
   recitaciones     Recitacion[]
   derivaciones     Derivacion[]
   resultadoAptitud ResultadoAptitud?
+  certificado      Certificado?
 }
 
 model Atencion {
@@ -100,6 +106,7 @@ model Atencion {
   recitacion         Recitacion?   @relation("AtencionRecitacion", fields: [recitacionId], references: [id], onDelete: SetNull)
   pendientesOrigen   Pendiente[]   @relation("PendienteAtencionOrigen")
   derivaciones       Derivacion[]  @relation("DerivacionAtencionOrigen")
+  informes           Informe[]
 
   @@index([recorridoId])
   @@index([profesionalId])
@@ -116,6 +123,8 @@ model Profesional {
   updatedAt      DateTime                  @updatedAt
   atenciones     Atencion[]
   reservas       Reserva[]
+  informes       Informe[]
+  certificados   Certificado[]
 }
 
 model Evaluacion {
@@ -131,6 +140,7 @@ model Evaluacion {
   atenciones   Atencion[]
   pendientes   Pendiente[]
   recitaciones Recitacion[]
+  informe      Informe?
 
   @@unique([recorridoId, especialidad])
 }
@@ -219,4 +229,37 @@ model ResultadoAptitud {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   recorrido            Recorrido             @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
+}
+
+model Informe {
+  id            String        @id @default(uuid())
+  evaluacionId  String        @unique
+  atencionId    String?
+  profesionalId String?
+  observaciones String        @default("")
+  estado        InformeEstado @default(PENDIENTE)
+  completadoAt  DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  evaluacion    Evaluacion    @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  atencion      Atencion?     @relation(fields: [atencionId], references: [id], onDelete: SetNull)
+  profesional   Profesional?  @relation(fields: [profesionalId], references: [id], onDelete: SetNull)
+
+  @@index([atencionId])
+  @@index([profesionalId])
+}
+
+model Certificado {
+  id            String                @id @default(uuid())
+  recorridoId   String                @unique
+  identificador String                @unique
+  aptitudFinal  ResultadoEspecialidad
+  profesionalId String?
+  emitidoAt     DateTime              @default(now())
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  recorrido     Recorrido             @relation(fields: [recorridoId], references: [id], onDelete: Cascade)
+  profesional   Profesional?          @relation(fields: [profesionalId], references: [id], onDelete: SetNull)
+
+  @@index([profesionalId])
 }
