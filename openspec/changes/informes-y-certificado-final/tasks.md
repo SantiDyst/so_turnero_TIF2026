@@ -40,10 +40,10 @@ Size exception: PR 1 accepted on 2026-10-21 at ~1,017 authored lines (951 new-fi
 
 ## Phase 2: PR 2 — Read Model + Docs
 
-- [ ] 2.1 `src/journeys/queue-query.service.ts`: ordered `reports[]`, `certificate: object | null`; keep existing keys and `Esperando llamado`.
-- [ ] 2.2 Test `test/unit/queue-vocabulary.spec.ts`: `reportState` vs `state`, certificate `null`.
-- [ ] 2.3 Test `test/e2e/journey.e2e-spec.ts`: three-entry read, status matrix, key preservation.
-- [ ] 2.4 `docs/first-functional-run.md`: RF-15 walkthrough; update Excluded scope.
+- [x] 2.1 `src/journeys/queue-query.service.ts`: ordered `reports[]`, `certificate: object | null`; keep existing keys and `Esperando llamado`.
+- [x] 2.2 Test `test/unit/queue-vocabulary.spec.ts`: `reportState` vs `state`, certificate `null`.
+- [x] 2.3 Test `test/e2e/journey.e2e-spec.ts`: three-entry read, status matrix, key preservation.
+- [x] 2.4 `docs/first-functional-run.md`: RF-15 walkthrough; update Excluded scope.
 
 ## Phase 3: PR 3 — Certificates (RF-16)
 
