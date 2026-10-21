@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DisponibilidadProfesional, Prisma } from '@prisma/client';
+import { DisponibilidadProfesional, Especialidad, Prisma } from '@prisma/client';
 
 import { ProfessionalAvailability } from '../shared/state-vocabulary';
 
 export interface LockedProfessional {
   id: string;
   availability: string;
+  especialidad: Especialidad;
 }
 
 @Injectable()
@@ -15,7 +16,7 @@ export class ProfessionalsService {
     professionalId: string,
   ): Promise<LockedProfessional> {
     const rows = await transaction.$queryRaw<LockedProfessional[]>(
-      Prisma.sql`SELECT "id", "disponibilidad" AS "availability" FROM "Profesional" WHERE "id" = ${professionalId} FOR UPDATE`,
+      Prisma.sql`SELECT "id", "disponibilidad" AS "availability", "especialidad" FROM "Profesional" WHERE "id" = ${professionalId} FOR UPDATE`,
     );
     const professional = rows[0];
 

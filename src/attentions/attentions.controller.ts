@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { AtencionEstado } from '@prisma/client';
 
-import { AttentionState } from '../shared/state-vocabulary';
+import { AttentionState, isSupportedSpecialty } from '../shared/state-vocabulary';
 import {
   AttentionCommandService,
   FinalizeAttentionInput,
@@ -42,15 +42,18 @@ export class AttentionsController {
   }
 
   private validateStart(body: StartAttentionBody): StartAttentionInput {
-    if (typeof body.specialty !== 'string' || body.specialty.trim().length === 0) {
-      throw new BadRequestException('specialty is required.');
+    const specialty = typeof body.specialty === 'string' ? body.specialty.trim() : '';
+    if (!isSupportedSpecialty(specialty)) {
+      throw new BadRequestException(
+        'specialty must be BIOQUIMICA, CLINICA_MEDICA, or PSICOLOGIA.',
+      );
     }
     if (typeof body.professionalId !== 'string' || body.professionalId.trim().length === 0) {
       throw new BadRequestException('professionalId is required.');
     }
 
     return {
-      specialty: body.specialty.trim(),
+      specialty,
       professionalId: body.professionalId.trim(),
     };
   }

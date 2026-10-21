@@ -1,4 +1,10 @@
-import { AtencionEstado, DisponibilidadProfesional, Prisma, RecorridoEstado } from '@prisma/client';
+import {
+  AtencionEstado,
+  DisponibilidadProfesional,
+  Especialidad,
+  Prisma,
+  RecorridoEstado,
+} from '@prisma/client';
 
 import { RegistrationService } from '../../src/applicants/registration.service';
 import { AttentionCommandService } from '../../src/attentions/attention-command.service';
@@ -34,12 +40,12 @@ describe('isolated database invariants', () => {
 
   it('enforces the partial active-attention index and rolls back a failing aggregate', async () => {
     const applicant = await registration.register({ nombre: 'Cai', apellido: 'Three', dni: '300' });
-    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. Index' } });
+    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. Index', especialidad: Especialidad.CLINICA_MEDICA } });
     await prisma.client.atencion.create({
       data: {
         recorridoId: applicant.journey.id,
         postulanteId: applicant.applicant.id,
-        especialidad: 'Clinical',
+        especialidad: Especialidad.CLINICA_MEDICA,
         profesionalId: professional.id,
         estado: AtencionEstado.EN_ATENCION,
         startedAt: new Date(),
@@ -50,7 +56,7 @@ describe('isolated database invariants', () => {
         data: {
           recorridoId: applicant.journey.id,
           postulanteId: applicant.applicant.id,
-          especialidad: 'Clinical',
+          especialidad: Especialidad.CLINICA_MEDICA,
           profesionalId: professional.id,
           estado: AtencionEstado.EN_ATENCION,
           startedAt: new Date(),
@@ -79,10 +85,10 @@ describe('isolated database invariants', () => {
   it('releases the professional while preserving the in-progress journey', async () => {
     const applicant = await registration.register({ nombre: 'Dee', apellido: 'Four', dni: '500' });
     const professional = await prisma.client.profesional.create({
-      data: { nombre: 'Dr. Release' },
+      data: { nombre: 'Dr. Release', especialidad: Especialidad.CLINICA_MEDICA },
     });
     const started = await attention.start(applicant.journey.id, {
-      specialty: 'Occupational medicine',
+      specialty: Especialidad.CLINICA_MEDICA,
       professionalId: professional.id,
     });
 

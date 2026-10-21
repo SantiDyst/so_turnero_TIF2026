@@ -1,8 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma, RecorridoEstado } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { toJourneyState } from '../shared/state-vocabulary';
+import { rethrowPrismaConflict } from '../shared/prisma-error.mapper';
+import { SUPPORTED_SPECIALTIES, toJourneyState } from '../shared/state-vocabulary';
 
 export interface RegisterApplicantInput {
   nombre: string;
@@ -27,6 +28,13 @@ export class RegistrationService {
           },
         });
 
+        await transaction.evaluacion.createMany({
+          data: SUPPORTED_SPECIALTIES.map((especialidad) => ({
+            recorridoId: journey.id,
+            especialidad,
+          })),
+        });
+
         return {
           applicant: {
             id: applicant.id,
@@ -42,11 +50,7 @@ export class RegistrationService {
         };
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('The generated attention number is already in use.');
-      }
-
-      throw error;
+      rethrowPrismaConflict(error, 'The generated attention number is already in use.');
     }
   }
 

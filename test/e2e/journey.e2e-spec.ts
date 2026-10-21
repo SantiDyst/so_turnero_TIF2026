@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import {
   AtencionEstado,
   DisponibilidadProfesional,
+  Especialidad,
   Prisma,
   RecorridoEstado,
 } from '@prisma/client';
@@ -85,22 +86,22 @@ describe('first functional journey HTTP API', () => {
   it('starts and finalizes attention while enforcing professional and transition conflicts', async () => {
     const first = await registerApplicant('E2E Start');
     const second = await registerApplicant('E2E Busy');
-    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. E2E' } });
-    const alternate = await prisma.client.profesional.create({ data: { nombre: 'Dr. Alternate' } });
+    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. E2E', especialidad: Especialidad.CLINICA_MEDICA } });
+    const alternate = await prisma.client.profesional.create({ data: { nombre: 'Dr. Alternate', especialidad: Especialidad.CLINICA_MEDICA } });
 
     const started = await request(app.getHttpServer())
       .post(`/journeys/${first.journey.id}/attentions`)
-      .send({ specialty: 'Clinical', professionalId: professional.id })
+      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
       .expect(201);
     expect(started.body.state).toBe('En atención');
     expect(started.body.startedAt).toBeTruthy();
     await request(app.getHttpServer())
       .post(`/journeys/${first.journey.id}/attentions`)
-      .send({ specialty: 'Clinical', professionalId: alternate.id })
+      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: alternate.id })
       .expect(409);
     await request(app.getHttpServer())
       .post(`/journeys/${second.journey.id}/attentions`)
-      .send({ specialty: 'Clinical', professionalId: professional.id })
+      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
       .expect(409);
 
     const queue = await request(app.getHttpServer()).get('/queue').expect(200);
@@ -148,13 +149,15 @@ describe('first functional journey HTTP API', () => {
     const registered = await registerApplicant('E2E Race');
     const [firstProfessional, secondProfessional] = await Promise.all(
       ['Dr. Race One', 'Dr. Race Two'].map((nombre) =>
-        prisma.client.profesional.create({ data: { nombre } }),
+        prisma.client.profesional.create({
+        data: { nombre, especialidad: Especialidad.CLINICA_MEDICA },
+      }),
       ),
     );
     const start = (professionalId: string) =>
       request(app.getHttpServer())
         .post(`/journeys/${registered.journey.id}/attentions`)
-        .send({ specialty: 'Clinical', professionalId });
+        .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId });
     const responses = await Promise.all([
       start(firstProfessional.id),
       start(secondProfessional.id),
@@ -169,11 +172,11 @@ describe('first functional journey HTTP API', () => {
   it('reads a finalized attention through a second application instance', async () => {
     const registered = await registerApplicant('E2E Persist Finalized');
     const professional = await prisma.client.profesional.create({
-      data: { nombre: 'Dr. Persist Finalized' },
+      data: { nombre: 'Dr. Persist Finalized', especialidad: Especialidad.CLINICA_MEDICA },
     });
     const started = await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/attentions`)
-      .send({ specialty: 'Clinical', professionalId: professional.id })
+      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
       .expect(201);
 
     const finalized = await request(app.getHttpServer())
@@ -207,7 +210,7 @@ describe('first functional journey HTTP API', () => {
         expect.objectContaining({
           id: started.body.attentionId,
           state: 'Finalizada',
-          specialty: 'Clinical',
+          specialty: Especialidad.CLINICA_MEDICA,
           endedAt: expect.any(String),
           professional: expect.objectContaining({
             id: professional.id,
@@ -224,11 +227,11 @@ describe('first functional journey HTTP API', () => {
   it('finalizes an attention as Pendiente and persists the pending outcome', async () => {
     const registered = await registerApplicant('E2E Pending');
     const professional = await prisma.client.profesional.create({
-      data: { nombre: 'Dr. Pending' },
+      data: { nombre: 'Dr. Pending', especialidad: Especialidad.CLINICA_MEDICA },
     });
     const started = await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/attentions`)
-      .send({ specialty: 'Occupational medicine', professionalId: professional.id })
+      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
       .expect(201);
 
     const finalized = await request(app.getHttpServer())
