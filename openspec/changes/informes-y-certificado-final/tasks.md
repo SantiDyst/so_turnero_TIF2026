@@ -16,7 +16,11 @@ Chained PRs recommended: Yes
 Chain strategy: stacked-to-main
 400-line budget risk: High
 
-Size exception: PR 1 accepted on 2026-10-21 at ~1,017 authored lines (951 new-file + 66 tracked insertions; ~515 test lines). One review unit keeps the RF-15 schema, service, and its tests together; no scope was trimmed. PR 2 and PR 3 remain under the 400-line budget target.
+Size exceptions (accepted by owner on 2026-10-21):
+- PR 1: ~1,017 authored lines (951 new-file + 66 tracked insertions; ~515 test lines). One review unit keeps the RF-15 schema, service, and its tests together.
+- PR 3: 863 authored lines (298 source, 512 tests, 53 docs/tasks). Splitting would separate the certificate routes from their acceptance coverage; 351 lines are non-test work.
+- PR 2 shipped at 399 lines, inside the 400-line budget, with no exception.
+No scope was trimmed to fit the budget in any slice.
 
 ### Suggested Work Units
 
@@ -47,12 +51,12 @@ Size exception: PR 1 accepted on 2026-10-21 at ~1,017 authored lines (951 new-fi
 
 ## Phase 3: PR 3 — Certificates (RF-16)
 
-- [ ] 3.1 Test `test/unit/certificates.spec.ts`: professional resolution (explicit/latest/`null`), wrong-specialty body → `400`.
-- [ ] 3.2 `src/certificates/certificate.view.ts`: identifier, attention number, applicant, aptitude snapshot, `issuedAt`, professional `| null`.
-- [ ] 3.3 `certificates.service.ts`: journey lock, existing early `200`, closure+aptitude else `409`, insert `201`; `P2002` re-read.
-- [ ] 3.4 `certificates.controller.ts` + module (`POST` `201`/`200` via `@Res` passthrough, `GET` `404` pre-issuance); wire app module.
-- [ ] 3.5 Test `test/integration/certificates.spec.ts`: `CERT-AT-1042`, repeat/concurrent single row, no clinical attention → `null`, ineligible `409`.
-- [ ] 3.6 Test `test/e2e/certificate.e2e-spec.ts`: `Apto condicional`, read `404` → `200`, identical repeat.
-- [ ] 3.7 Docs RF-16 walkthrough; `npm test`, `npm run build`.
+- [x] 3.1 Test `test/unit/certificates.spec.ts`: professional resolution (explicit/latest/`null`), wrong-specialty body → `400`.
+- [x] 3.2 `src/certificates/certificate.view.ts`: identifier, attention number, applicant, aptitude snapshot, `issuedAt`, professional `| null`.
+- [x] 3.3 `certificates.service.ts`: journey lock, existing early `200`, closure+aptitude else `409`, insert `201`; `P2002` re-read.
+- [x] 3.4 `certificates.controller.ts` + module (`POST` `201`/`200` via `@Res` passthrough, `GET` `404` pre-issuance); wire app module.
+- [x] 3.5 Test `test/integration/certificates.spec.ts`: `CERT-AT-1042`, repeat/concurrent single row, no clinical attention → `null`, ineligible `409`.
+- [x] 3.6 Test `test/e2e/certificate.e2e-spec.ts`: `Apto condicional`, read `404` → `200`, identical repeat.
+- [x] 3.7 Docs RF-16 walkthrough; `npm test`, `npm run build`.
 
 Out of scope: pre-existing dirty `package.json` seed script, never staged.
