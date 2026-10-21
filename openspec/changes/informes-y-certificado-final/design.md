@@ -84,7 +84,7 @@ N/A — no routing, shell, subprocess, VCS/PR automation, executable classificat
 
 ## Migration / Rollout
 
-Slices: (1) schema + reports, (2) read model + e2e + docs, (3) certificates. No backfill; rollback drops both tables and reverts keys/routes. Each stays under 400 lines.
+Slices: (1) schema + reports, (2) read model + e2e + docs, (3) certificates. No backfill; rollback drops both tables and reverts keys/routes. PR 2 landed at 399 lines; PR 1 and PR 3 carry accepted size exceptions recorded in tasks.md.
 
 ## Open Questions
 

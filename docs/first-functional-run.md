@@ -99,6 +99,25 @@ The read always returns three entries ordered `BIOQUIMICA`, `CLINICA_MEDICA`, `P
 
 `GET /journeys?attentionNumber=AT-1042` also returns `reports[]` and `certificate` without removing or renaming any existing key. `reportState` stays separate from the attention `state` even when both read `Pendiente`; `certificate` is `null` until issuance.
 
+## Final certificate (RF-16)
+
+Issuance is explicit. A journey must be in `Cierre final` with a stored final aptitude; otherwise the request returns `409` and nothing is stored. An unknown journey returns `404`.
+
+```sh
+curl -i -X POST "$API_URL/journeys/<journey-id>/certificate" \
+  -H 'content-type: application/json' -d '{}'
+```
+
+The first issuance returns `201`; repeating it, including concurrently, returns `200` with the identical stored certificate and never creates a second row. An optional `professionalId` must reference a `CLINICA_MEDICA` professional (`400` otherwise, `404` when unknown). Without it, the certificate uses the latest `CLINICA_MEDICA` attention of the journey, or `null` when the closed journey has no clinical attention.
+
+The identifier is deterministic: `CERT-<numeroAtencion>`, for example `CERT-AT-1042`. The certificate snapshots the final aptitude and `issuedAt`, and exposes `attentionNumber`, `applicant`, and `responsibleProfessional`. Repeats return the stored snapshot unchanged.
+
+```sh
+curl -i "$API_URL/journeys/<journey-id>/certificate"
+```
+
+Reading before issuance returns `404`; after issuance the certificate stays readable while the journey is closed. `GET /journeys` exposes the same object under `certificate`. No digital signature or automatic delivery is produced.
+
 ## Agenda fallback
 
 Migration C installs `btree_gist` and an exclusion constraint that rejects overlapping `RESERVADA` reservations for the same professional. The runtime does not depend on that constraint alone: every reservation create/reschedule and every recitation scheduling request locks the professional row and runs an overlap `SELECT` before writing (create/reschedule additionally take `pg_advisory_xact_lock(hashtext(profesionalId))`). If `CREATE EXTENSION btree_gist` is unavailable on a target database, skip only the constraint from migration C; the row lock plus overlap query still serializes conflicting requests and maps the loser to `409`.
@@ -120,4 +139,4 @@ Rollback boundary: first roll back the API deployment to the prior Vercel deploy
 
 ## Excluded scope
 
-This circuit deliberately excludes authentication/authorization, RF-16 certificate issuance (covered by the next slice), frontend/UI, aptitude recalculation, and real personal data.
+This circuit deliberately excludes authentication/authorization, frontend/UI, aptitude recalculation, digital signature, automatic certificate delivery, and real personal data.

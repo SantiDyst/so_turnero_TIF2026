@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AtencionEstado, EvaluacionEstado, RecorridoEstado } from '@prisma/client';
 
+import { buildCertificateView } from '../certificates/certificate.view';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildJourneyReports } from '../reports/report.view';
 import {
@@ -189,20 +190,11 @@ export class QueueQueryService {
         resultadoAptitud: journey.resultadoAptitud,
       }),
       certificate: journey.certificado
-        ? {
-            id: journey.certificado.id,
-            identifier: journey.certificado.identificador,
+        ? buildCertificateView({
+            certificate: journey.certificado,
             attentionNumber: journey.numeroAtencion,
             applicant,
-            finalAptitude: toAptitudeState(journey.certificado.aptitudFinal),
-            issuedAt: journey.certificado.emitidoAt,
-            responsibleProfessional: journey.certificado.profesional
-              ? {
-                  id: journey.certificado.profesional.id,
-                  nombre: journey.certificado.profesional.nombre,
-                }
-              : null,
-          }
+          })
         : null,
     };
   }
