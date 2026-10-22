@@ -4,7 +4,7 @@
 
 ### Requirement: Report only the approved state vocabulary
 
-Queries MUST represent journey state as `En espera`, `En proceso`, or `CIERRE_FINAL`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; evaluation state as `PENDIENTE` or `COMPLETA`; reservation state as `RESERVADA`, `CUMPLIDA`, `CANCELADA`, `REPROGRAMADA`, or `AUSENTE`; aptitude as `APTO_PLENO`, `APTO_CONDICIONAL`, or `NO_APTO`; report state as `Pendiente` or `Completo` under the distinct key `reportState`; and professional availability as `Disponible` or `Ocupado`.
+Queries MUST represent journey state as `En espera`, `En proceso`, or `Cierre final`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; evaluation state as `PENDIENTE` or `COMPLETA`; reservation state as `RESERVADA`, `CUMPLIDA`, `CANCELADA`, `REPROGRAMADA`, or `AUSENTE`; aptitude as `APTO_PLENO`, `APTO_CONDICIONAL`, or `NO_APTO`; report state as `Pendiente` or `Completo` under the distinct key `reportState`; and professional availability as `Disponible` or `Ocupado`.
 (Previously: report state was absent from the approved vocabulary.)
 
 #### Scenario: Query after a state transition

@@ -4,17 +4,17 @@
 
 ### Requirement: Issue only for a closed journey with stored aptitude
 
-Issuance MUST require journey state `CIERRE_FINAL` and a stored final aptitude; otherwise it MUST return `409`. An unknown journey MUST return `404`.
+Issuance MUST require journey state `Cierre final` and a stored final aptitude; otherwise it MUST return `409`. An unknown journey MUST return `404`.
 
 #### Scenario: Issue an eligible certificate
 
-- GIVEN a journey is `CIERRE_FINAL` with stored aptitude
+- GIVEN a journey is `Cierre final` with stored aptitude
 - WHEN issuance is requested
 - THEN one certificate MUST be stored
 
 #### Scenario: Reject ineligible issuance
 
-- GIVEN the journey is not `CIERRE_FINAL` or has no stored aptitude
+- GIVEN the journey is not `Cierre final` or has no stored aptitude
 - WHEN issuance is requested
 - THEN it MUST return `409`
 - AND no certificate MUST be stored

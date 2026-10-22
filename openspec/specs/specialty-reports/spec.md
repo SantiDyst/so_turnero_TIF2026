@@ -15,7 +15,7 @@ The system MUST persist exactly one report per journey and specialty, anchored o
 
 ### Requirement: Authorize writes without altering the circuit
 
-A write MUST return `400` for an invalid body, `404` for an unknown attention or journey, and `409` when the journey is `CIERRE_FINAL`. `Completo` MUST require non-empty observations, otherwise `400`. Writes after closure MUST be rejected while reads remain allowed. Saving a report MUST NOT complete an evaluation, resolve a pending, change attention or journey state, or alter closure readiness or aptitude.
+A write MUST return `400` for an invalid body, `404` for an unknown attention or journey, and `409` when the journey is `Cierre final`. `Completo` MUST require non-empty observations, otherwise `400`. Writes after closure MUST be rejected while reads remain allowed. Saving a report MUST NOT complete an evaluation, resolve a pending, change attention or journey state, or alter closure readiness or aptitude.
 
 #### Scenario: Reject invalid or closed writes
 

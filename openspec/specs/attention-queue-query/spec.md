@@ -44,7 +44,7 @@ The system MUST return the same journey when queried by its applicant record ide
 
 ### Requirement: Report only the approved state vocabulary
 
-Queries MUST represent journey state as `En espera`, `En proceso`, or `CIERRE_FINAL`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; evaluation state as `PENDIENTE` or `COMPLETA`; reservation state as `RESERVADA`, `CUMPLIDA`, `CANCELADA`, `REPROGRAMADA`, or `AUSENTE`; aptitude as `APTO_PLENO`, `APTO_CONDICIONAL`, or `NO_APTO`; and professional availability as `Disponible` or `Ocupado`.
+Queries MUST represent journey state as `En espera`, `En proceso`, or `Cierre final`; attention state as `No iniciada`, `En espera`, `En atención`, `Finalizada`, or `Pendiente`; evaluation state as `PENDIENTE` or `COMPLETA`; reservation state as `RESERVADA`, `CUMPLIDA`, `CANCELADA`, `REPROGRAMADA`, or `AUSENTE`; aptitude as `APTO_PLENO`, `APTO_CONDICIONAL`, or `NO_APTO`; report state as `Pendiente` or `Completo` under the distinct key `reportState`; and professional availability as `Disponible` or `Ocupado`.
 
 #### Scenario: Query after a state transition
 
@@ -60,6 +60,13 @@ Queries MUST represent journey state as `En espera`, `En proceso`, or `CIERRE_FI
 - THEN each category MUST use its approved vocabulary
 - AND an evaluation or reservation state MUST NOT be reported as the journey state
 
+#### Scenario: Disambiguate report and attention state
+
+- GIVEN a report is `Pendiente` and its attention is also `Pendiente`
+- WHEN the journey is queried
+- THEN the report state MUST appear under `reportState`
+- AND the attention state MUST remain under `state`
+
 ### Requirement: Provide open persistent queries for this slice
 
 The registration, queue/query, start, and finalization capabilities MUST be callable without authentication in this slice. Query results MUST come from persisted state that survives reload and backend restart.
@@ -72,7 +79,7 @@ The registration, queue/query, start, and finalization capabilities MUST be call
 
 ### Requirement: Expose the complete circuit read model
 
-The journey read model MUST expose its evaluations, pendings, recitations and reservations, derivations, and stored aptitude. For an `En proceso` journey with no active attention and pending evaluations, it MUST derive `Esperando llamado`; derived state MUST NOT be persisted.
+The journey read model MUST expose its evaluations, pendings, recitations and reservations, derivations, stored aptitude, and three specialty reports, plus the issued certificate or `null`, without removing or renaming existing keys. Reports MUST use the three-entry shape and order defined for specialty reports; the certificate MUST expose `identifier`, `issuedAt`, `responsibleProfessional`, and `finalAptitude`. For an `En proceso` journey with no active attention and pending evaluations, it MUST derive `Esperando llamado`; derived state MUST NOT be persisted.
 
 #### Scenario: Read the complete circuit
 
@@ -92,6 +99,13 @@ The journey read model MUST expose its evaluations, pendings, recitations and re
 - GIVEN an `Esperando llamado` journey starts its next attention
 - WHEN it is queried
 - THEN the derived value MUST no longer be present
+
+#### Scenario: Include reports and certificate
+
+- GIVEN a journey has three reports and an issued certificate
+- WHEN it is queried
+- THEN `reports` MUST contain three ordered entries and `certificate` MUST expose its fields
+- AND every existing key MUST remain present
 
 ## Scope and Traceability
 
