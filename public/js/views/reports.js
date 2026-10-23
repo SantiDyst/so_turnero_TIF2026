@@ -48,10 +48,7 @@ export function renderReportSection({ journey, specialty, locked = false, onActi
       el('h3', { text: 'Informe' }),
       el('span', { class: 'badge', text: report?.reportState ?? 'Pendiente' }),
     ]),
-    el('div', { class: 'grid' }, [
-      observations,
-      el('div', { class: 'row' }, [stateSelect, save]),
-    ]),
+    el('div', { class: 'grid' }, [observations, el('div', { class: 'row' }, [stateSelect, save])]),
     !locked && !attention
       ? el('p', { class: 'hint', text: 'Requiere una atención iniciada para esta especialidad.' })
       : null,

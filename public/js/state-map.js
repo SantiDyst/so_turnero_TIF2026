@@ -30,12 +30,14 @@ export const JOURNEY_STATE_CLASS = {
   'En espera': 'badge',
   'En proceso': 'badge active',
   'Cierre final': 'badge complete',
+  Anulada: 'badge bad',
 };
 
 export const ATTENTION_IN_PROGRESS = 'En atención';
 export const EVALUATION_PENDING = 'PENDIENTE';
 export const EVALUATION_COMPLETE = 'COMPLETA';
 export const JOURNEY_CLOSED = 'Cierre final';
+export const JOURNEY_ANNULLED = 'Anulada';
 export const REPORT_COMPLETE = 'Completo';
 
 export function specialtyLabel(code) {
@@ -53,16 +55,13 @@ export function evaluationOf(journey, specialty) {
 export function activeAttentionOf(journey, specialty) {
   return (
     journey.attentions.find(
-      (attention) =>
-        attention.specialty === specialty && attention.state === ATTENTION_IN_PROGRESS,
+      (attention) => attention.specialty === specialty && attention.state === ATTENTION_IN_PROGRESS,
     ) ?? null
   );
 }
 
 export function latestAttentionOf(journey, specialty) {
-  const attentions = journey.attentions.filter(
-    (attention) => attention.specialty === specialty,
-  );
+  const attentions = journey.attentions.filter((attention) => attention.specialty === specialty);
 
   return (
     attentions.sort((left, right) =>
@@ -81,8 +80,12 @@ export function openPendingsOf(journey, evaluationId) {
   );
 }
 
+export function isAnnulled(journey) {
+  return journey.journey.state === JOURNEY_ANNULLED;
+}
+
 export function isClosed(journey) {
-  return journey.journey.state === JOURNEY_CLOSED;
+  return journey.journey.state === JOURNEY_CLOSED || journey.journey.state === JOURNEY_ANNULLED;
 }
 
 export function previousSpecialty(specialty) {
@@ -114,9 +117,7 @@ export function canStart(journey, specialty) {
     return false;
   }
 
-  return (
-    evaluation.state !== EVALUATION_COMPLETE && !activeAttentionOf(journey, specialty)
-  );
+  return evaluation.state !== EVALUATION_COMPLETE && !activeAttentionOf(journey, specialty);
 }
 
 export function canRecordResult(specialty) {
@@ -148,4 +149,12 @@ export function needsFinalizeConfirmation(journey, specialty) {
   const missingResult = canRecordResult(specialty) && !evaluation?.result;
 
   return missingReport || Boolean(missingResult);
+}
+
+export function entryCanAnnul(entry) {
+  return (entry.state === 'En espera' || entry.state === 'En proceso') && !entry.activeSpecialty;
+}
+
+export function entryCanDelete(entry) {
+  return entry.attentionCount === 0;
 }

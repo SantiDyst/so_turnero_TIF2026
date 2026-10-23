@@ -1,7 +1,10 @@
 import { clear, el } from './dom.js';
 import { readRoute } from './router.js';
+import { renderEvaluateList } from './views/evaluate-list.js';
+import { renderHome } from './views/home.js';
 import { renderIntake } from './views/intake.js';
 import { renderJourney } from './views/journey.js';
+import { renderManagement } from './views/management.js';
 
 const app = document.querySelector('#app');
 const banner = document.querySelector('#banner');
@@ -27,9 +30,22 @@ async function render() {
   try {
     if (route.name === 'journey') {
       await renderJourney(app, route.attentionNumber, ctx);
-    } else {
-      await renderIntake(app, ctx);
+      return;
     }
+    if (route.name === 'intake') {
+      renderIntake(app, ctx);
+      return;
+    }
+    if (route.name === 'evaluate') {
+      await renderEvaluateList(app, ctx);
+      return;
+    }
+    if (route.name === 'management') {
+      await renderManagement(app, ctx);
+      return;
+    }
+
+    renderHome(app);
   } catch (error) {
     ctx.showError(error?.message ?? 'Error inesperado');
     app.append(

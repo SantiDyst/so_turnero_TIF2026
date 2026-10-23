@@ -5,8 +5,17 @@ export function readRoute() {
   if (journeyMatch) {
     return { name: 'journey', attentionNumber: journeyMatch[1] };
   }
+  if (hash === '/turnos') {
+    return { name: 'intake' };
+  }
+  if (hash === '/evaluar') {
+    return { name: 'evaluate' };
+  }
+  if (hash === '/gestion') {
+    return { name: 'management' };
+  }
 
-  return { name: 'intake' };
+  return { name: 'home' };
 }
 
 export function navigate(path) {

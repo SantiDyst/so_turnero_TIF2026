@@ -16,17 +16,20 @@ function openCertificateModal(certificate) {
 
   const sheet = el('article', { id: 'certificate-sheet', class: 'certificate' }, [
     el('h3', { text: 'Certificado de Aptitud' }),
-    el('p', { class: 'subtitle', text: 'Documento ficticio generado para la demostración del sistema.' }),
+    el('p', {
+      class: 'subtitle',
+      text: 'Documento ficticio generado para la demostración del sistema.',
+    }),
     el('dl', {}, [
       detail('Identificador', certificate.identifier),
       detail('N° de atención', certificate.attentionNumber),
-      detail(
-        'Postulante',
-        `${certificate.applicant.nombre} ${certificate.applicant.apellido}`,
-      ),
+      detail('Postulante', `${certificate.applicant.nombre} ${certificate.applicant.apellido}`),
       detail('Aptitud final', map.resultLabel(certificate.finalAptitude)),
       detail('Fecha de emisión', formatDate(certificate.issuedAt)),
-      detail('Profesional responsable', certificate.responsibleProfessional?.nombre ?? 'Sin responsable'),
+      detail(
+        'Profesional responsable',
+        certificate.responsibleProfessional?.nombre ?? 'Sin responsable',
+      ),
     ]),
     el('p', { class: 'stamp', text: 'SO Turnero · Consola de verificación' }),
   ]);

@@ -72,5 +72,7 @@ export const api = {
   completeEvaluation: (evaluationId) => request('PATCH', `/evaluations/${evaluationId}/complete`),
   saveReport: (attentionId, data) => request('PUT', `/attentions/${attentionId}/report`, data),
   close: (journeyId) => request('POST', `/journeys/${journeyId}/close`),
+  annulJourney: (journeyId, motivo) => request('POST', `/journeys/${journeyId}/annul`, { motivo }),
+  deleteJourney: (journeyId) => request('DELETE', `/journeys/${journeyId}`),
   issueCertificate: (journeyId) => request('POST', `/journeys/${journeyId}/certificate`, {}),
 };

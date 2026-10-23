@@ -34,10 +34,7 @@ export function field(labelText, control) {
   const id = control.id || `field-${Math.random().toString(36).slice(2, 9)}`;
   control.id = id;
 
-  return el('label', { class: 'field', for: id }, [
-    el('span', { text: labelText }),
-    control,
-  ]);
+  return el('label', { class: 'field', for: id }, [el('span', { text: labelText }), control]);
 }
 
 export function input(name, attributes = {}) {

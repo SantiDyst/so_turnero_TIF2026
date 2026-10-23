@@ -60,7 +60,11 @@ export async function renderJourney(container, attentionNumber, ctx) {
     const { applicant, journey: journeyInfo } = journey;
 
     return el('section', { class: 'panel' }, [
-      el('a', { class: 'back', href: '#/', text: '← Volver a los turnos' }),
+      el('a', {
+        class: 'back',
+        href: map.isClosed(journey) ? '#/gestion' : '#/evaluar',
+        text: map.isClosed(journey) ? '← Volver a gestión' : '← Volver a evaluar',
+      }),
       el('div', { class: 'card-head', style: 'margin-top:10px' }, [
         el('h1', {
           text: `${applicant.nombre} ${applicant.apellido} · ${journeyInfo.attentionNumber}`,
@@ -79,6 +83,12 @@ export async function renderJourney(container, attentionNumber, ctx) {
           journey.aptitude ? map.resultLabel(journey.aptitude.finalAptitude) : 'Sin calcular',
         ),
       ]),
+      map.isAnnulled(journey)
+        ? el('p', {
+            class: 'notice error',
+            text: `Turno anulado${journeyInfo.annulledReason ? `: ${journeyInfo.annulledReason}` : '.'}`,
+          })
+        : null,
     ]);
   }
 

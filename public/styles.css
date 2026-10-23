@@ -8,7 +8,11 @@
   --accent: #2257c7;
   --danger: #b3261e;
   --ok: #146c43;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
 }
 
 * {
@@ -438,4 +442,55 @@ dd {
   .no-print {
     display: none !important;
   }
+}
+
+.modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.module {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.module strong {
+  font-size: 16px;
+}
+
+.module.bio {
+  border-left-color: #7ecfa2;
+  background: #f7fdfa;
+}
+
+.module.clinica {
+  border-left-color: #93b4ef;
+  background: #f8fbff;
+}
+
+.module.psico {
+  border-left-color: #b9a0e8;
+  background: #fbf8ff;
+}
+
+.module:hover {
+  border-color: var(--accent);
+}
+
+.chip {
+  text-decoration: none;
+}
+
+button.danger {
+  border-color: #f0a8a2;
+  color: var(--danger);
 }
