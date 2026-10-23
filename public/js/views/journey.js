@@ -9,10 +9,23 @@ function row(label, value) {
   return el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
 }
 
+function notice(noticeState) {
+  if (!noticeState) {
+    return null;
+  }
+
+  return el('p', {
+    class: `notice ${noticeState.kind ?? ''}`.trim(),
+    text: noticeState.text,
+  });
+}
+
 export async function renderJourney(container, attentionNumber, ctx) {
   let journey;
   let professionals;
   let readiness;
+  let confirmFinalize = null;
+  const notices = new Map();
 
   async function load() {
     journey = await api.journey(attentionNumber);
@@ -22,29 +35,40 @@ export async function renderJourney(container, attentionNumber, ctx) {
     ]);
   }
 
-  async function mutate(action) {
+  async function mutate(key, pendingText, action, successText) {
+    notices.set(key, { text: pendingText, kind: 'info' });
+    confirmFinalize = null;
+    render();
+
     try {
       await action();
-      ctx.clearBanner();
+      notices.set(key, { text: successText, kind: 'ok' });
     } catch (error) {
-      ctx.showError(error?.message ?? 'Error inesperado');
+      notices.set(key, { text: error?.message ?? 'Error inesperado', kind: 'error' });
     }
 
     try {
       await load();
-      render();
     } catch (error) {
-      ctx.showError(error?.message ?? 'No se pudo refrescar el recorrido.');
+      notices.set(key, { text: error?.message ?? 'No se pudo refrescar.', kind: 'error' });
     }
+
+    render();
   }
 
   function header() {
     const { applicant, journey: journeyInfo } = journey;
 
     return el('section', { class: 'panel' }, [
-      el('div', { class: 'card-head' }, [
-        el('h1', { text: `${applicant.nombre} ${applicant.apellido} · ${journeyInfo.attentionNumber}` }),
-        el('span', { class: 'badge', text: journeyInfo.state }),
+      el('a', { class: 'back', href: '#/', text: '← Volver a los turnos' }),
+      el('div', { class: 'card-head', style: 'margin-top:10px' }, [
+        el('h1', {
+          text: `${applicant.nombre} ${applicant.apellido} · ${journeyInfo.attentionNumber}`,
+        }),
+        el('span', {
+          class: map.JOURNEY_STATE_CLASS[journeyInfo.state] ?? 'badge',
+          text: journeyInfo.state,
+        }),
       ]),
       el('dl', {}, [
         row('DNI', applicant.dni),
@@ -58,32 +82,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
     ]);
   }
 
-  function actionRow(specialty, active) {
-    if (active) {
-      const stateSelect = select(
-        'finalizeState',
-        [
-          ['Finalizada', 'Finalizada'],
-          ['Pendiente', 'Pendiente'],
-        ],
-        'Finalizada',
-      );
-
-      return el('div', { class: 'row' }, [
-        stateSelect,
-        button('Finalizar atención', () =>
-          mutate(() => api.finalizeAttention(active.id, stateSelect.value)),
-        ),
-      ]);
-    }
-
-    if (!map.canStart(journey, specialty)) {
-      return el('p', {
-        class: 'hint',
-        text: map.isClosed(journey) ? 'Recorrido cerrado.' : 'Sin acciones disponibles.',
-      });
-    }
-
+  function startRow(specialty) {
     const candidates = professionals.filter(
       (professional) =>
         professional.specialty === specialty && professional.availability === 'Disponible',
@@ -107,15 +106,76 @@ export async function renderJourney(container, attentionNumber, ctx) {
       button(
         'Iniciar atención',
         () =>
-          mutate(() =>
-            api.startAttention(journey.journey.id, specialty, professionalSelect.value),
+          mutate(
+            specialty,
+            'Iniciando atención…',
+            () => api.startAttention(journey.journey.id, specialty, professionalSelect.value),
+            'Atención iniciada.',
           ),
         { class: 'primary' },
       ),
     ]);
   }
 
-  function resultRow(evaluation) {
+  function finalizeRow(specialty, active) {
+    if (confirmFinalize === specialty) {
+      return el('div', { class: 'notice' }, [
+        el('p', {
+          text: '¿Finalizar la atención sin cargar el informe y el resultado?',
+          style: 'margin:0 0 8px',
+        }),
+        el('div', { class: 'row' }, [
+          button(
+            'Sí, finalizar',
+            () =>
+              mutate(
+                specialty,
+                'Finalizando atención…',
+                () => api.finalizeAttention(active.id, 'Finalizada'),
+                'Atención finalizada.',
+              ),
+            { class: 'primary' },
+          ),
+          button('Cancelar', () => {
+            confirmFinalize = null;
+            render();
+          }),
+        ]),
+      ]);
+    }
+
+    const stateSelect = select(
+      'finalizeState',
+      [
+        ['Finalizada', 'Finalizada'],
+        ['Pendiente', 'Pendiente'],
+      ],
+      'Finalizada',
+    );
+
+    return el('div', { class: 'row' }, [
+      stateSelect,
+      button('Finalizar atención', () => {
+        if (
+          stateSelect.value === 'Finalizada' &&
+          map.needsFinalizeConfirmation(journey, specialty)
+        ) {
+          confirmFinalize = specialty;
+          render();
+          return;
+        }
+
+        mutate(
+          specialty,
+          'Finalizando atención…',
+          () => api.finalizeAttention(active.id, stateSelect.value),
+          'Atención finalizada.',
+        );
+      }),
+    ]);
+  }
+
+  function resultRow(specialty, evaluation) {
     const resultSelect = select(
       'result',
       [['', 'Sin resultado'], ...map.RESULT_CODES.map((code) => [code, map.resultLabel(code)])],
@@ -126,10 +186,17 @@ export async function renderJourney(container, attentionNumber, ctx) {
       resultSelect,
       button('Guardar resultado', () => {
         if (!resultSelect.value) {
-          ctx.showError('Elegí un resultado.');
+          notices.set(specialty, { text: 'Elegí un resultado antes de guardar.', kind: 'error' });
+          render();
           return;
         }
-        mutate(() => api.saveResult(evaluation.id, resultSelect.value));
+
+        mutate(
+          specialty,
+          'Guardando resultado…',
+          () => api.saveResult(evaluation.id, resultSelect.value),
+          'Resultado guardado.',
+        );
       }),
     ]);
   }
@@ -137,9 +204,17 @@ export async function renderJourney(container, attentionNumber, ctx) {
   function completionRow(specialty, evaluation) {
     if (map.canComplete(journey, specialty)) {
       return el('div', { class: 'row' }, [
-        button('Completar evaluación', () => mutate(() => api.completeEvaluation(evaluation.id)), {
-          class: 'primary',
-        }),
+        button(
+          'Completar evaluación',
+          () =>
+            mutate(
+              specialty,
+              'Completando evaluación…',
+              () => api.completeEvaluation(evaluation.id),
+              'Evaluación completada.',
+            ),
+          { class: 'primary' },
+        ),
       ]);
     }
 
@@ -148,11 +223,14 @@ export async function renderJourney(container, attentionNumber, ctx) {
     }
 
     if (map.openPendingsOf(journey, evaluation.id).length > 0) {
-      return el('p', { class: 'hint', text: 'Hay pendientes abiertos.' });
+      return el('p', {
+        class: 'hint',
+        text: 'Hay pendientes abiertos: no se puede completar.',
+      });
     }
 
     if (map.canRecordResult(specialty) && !evaluation.result) {
-      return el('p', { class: 'hint', text: 'Falta guardar el resultado.' });
+      return el('p', { class: 'hint', text: 'Falta guardar el resultado para poder completar.' });
     }
 
     return null;
@@ -163,6 +241,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
     const active = map.activeAttentionOf(journey, specialty);
     const latest = map.latestAttentionOf(journey, specialty);
     const report = map.reportOf(journey, specialty);
+    const blocker = map.sequenceBlocker(journey, specialty);
 
     const badgeClass =
       evaluation?.state === map.EVALUATION_COMPLETE
@@ -176,6 +255,18 @@ export async function renderJourney(container, attentionNumber, ctx) {
         el('h3', { text: map.specialtyLabel(specialty) }),
         el('span', { class: badgeClass, text: evaluation?.state ?? 'SIN EVALUACIÓN' }),
       ]),
+    ];
+
+    if (blocker) {
+      nodes.push(el('p', { class: 'notice', text: blocker }));
+    } else {
+      const cardNotice = notice(notices.get(specialty));
+      if (cardNotice) {
+        nodes.push(cardNotice);
+      }
+    }
+
+    nodes.push(
       el('dl', {}, [
         row('Resultado', map.resultLabel(evaluation?.result)),
         row(
@@ -188,14 +279,26 @@ export async function renderJourney(container, attentionNumber, ctx) {
         ),
         row('Informe', report ? report.reportState : 'Pendiente'),
       ]),
-      actionRow(specialty, active),
-    ];
+    );
 
-    if (evaluation && map.canRecordResult(specialty) && evaluation.state !== map.EVALUATION_COMPLETE) {
-      nodes.push(resultRow(evaluation));
+    if (!blocker && active) {
+      nodes.push(finalizeRow(specialty, active));
+    } else if (!blocker && map.canStart(journey, specialty)) {
+      nodes.push(startRow(specialty));
+    } else if (!blocker && map.isClosed(journey)) {
+      nodes.push(el('p', { class: 'hint', text: 'Recorrido cerrado.' }));
     }
 
-    if (evaluation) {
+    if (
+      !blocker &&
+      evaluation &&
+      map.canRecordResult(specialty) &&
+      evaluation.state !== map.EVALUATION_COMPLETE
+    ) {
+      nodes.push(resultRow(specialty, evaluation));
+    }
+
+    if (!blocker && evaluation) {
       nodes.push(completionRow(specialty, evaluation));
     }
 
@@ -203,19 +306,30 @@ export async function renderJourney(container, attentionNumber, ctx) {
       renderReportSection({
         journey,
         specialty,
-        onAction: mutate,
-        onError: ctx.showError,
+        locked: Boolean(blocker),
+        onAction: (pendingText, action, successText) =>
+          mutate(specialty, pendingText, action, successText),
+        onError: (message) => {
+          notices.set(specialty, { text: message, kind: 'error' });
+          render();
+        },
       }),
     );
 
-    return el('section', { class: 'card' }, nodes);
+    return el('section', { class: `card ${map.SPECIALTY_CLASS[specialty]}` }, nodes);
   }
 
   function render() {
     container.replaceChildren(
       header(),
       ...map.SPECIALTIES.map(card),
-      renderClosurePanel({ journey, readiness, onAction: mutate }),
+      renderClosurePanel({
+        journey,
+        readiness,
+        notice: notices.get('closure'),
+        onAction: (pendingText, action, successText) =>
+          mutate('closure', pendingText, action, successText),
+      }),
     );
   }
 

@@ -2,10 +2,10 @@ import { button, el, select } from '../dom.js';
 import { api } from '../api-client.js';
 import * as map from '../state-map.js';
 
-export function renderReportSection({ journey, specialty, onAction, onError }) {
+export function renderReportSection({ journey, specialty, locked = false, onAction, onError }) {
   const report = map.reportOf(journey, specialty);
   const attention = map.latestAttentionOf(journey, specialty);
-  const editable = map.canSaveReport(journey, specialty);
+  const editable = !locked && map.canSaveReport(journey, specialty);
 
   const observations = el('textarea', {
     rows: 3,
@@ -34,7 +34,11 @@ export function renderReportSection({ journey, specialty, onAction, onError }) {
         return;
       }
 
-      onAction(() => api.saveReport(attention.id, { observations: text, state: stateSelect.value }));
+      onAction(
+        'Guardando informe…',
+        () => api.saveReport(attention.id, { observations: text, state: stateSelect.value }),
+        'Informe guardado.',
+      );
     },
     { disabled: !editable },
   );
@@ -48,8 +52,8 @@ export function renderReportSection({ journey, specialty, onAction, onError }) {
       observations,
       el('div', { class: 'row' }, [stateSelect, save]),
     ]),
-    editable
-      ? null
-      : el('p', { class: 'hint', text: 'Requiere una atención iniciada para esta especialidad.' }),
+    !locked && !attention
+      ? el('p', { class: 'hint', text: 'Requiere una atención iniciada para esta especialidad.' })
+      : null,
   ]);
 }

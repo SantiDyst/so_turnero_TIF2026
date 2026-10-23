@@ -11,6 +11,11 @@ export class JourneysController {
     return this.queueQueryService.listQueue();
   }
 
+  @Get('journeys/overview')
+  listOverview() {
+    return this.queueQueryService.listOverview();
+  }
+
   @Get('journeys')
   findJourney(
     @Query('applicantId') applicantId?: string,

@@ -58,6 +58,7 @@ async function request(method, path, body) {
 export const api = {
   register: (data) => request('POST', '/applicants', data),
   queue: () => request('GET', '/queue'),
+  overview: () => request('GET', '/journeys/overview'),
   journey: (attentionNumber) =>
     request('GET', `/journeys?attentionNumber=${encodeURIComponent(attentionNumber)}`),
   professionals: () => request('GET', '/professionals'),

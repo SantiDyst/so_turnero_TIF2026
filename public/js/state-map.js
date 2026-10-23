@@ -6,6 +6,12 @@ export const SPECIALTY_LABELS = {
   PSICOLOGIA: 'Psicología',
 };
 
+export const SPECIALTY_CLASS = {
+  BIOQUIMICA: 'bio',
+  CLINICA_MEDICA: 'clinica',
+  PSICOLOGIA: 'psico',
+};
+
 export const RESULT_LABELS = {
   APTO_PLENO: 'Apto pleno',
   APTO_CONDICIONAL: 'Apto condicional',
@@ -13,6 +19,18 @@ export const RESULT_LABELS = {
 };
 
 export const RESULT_CODES = Object.keys(RESULT_LABELS);
+
+export const APTITUDE_CLASS = {
+  APTO_PLENO: 'badge ok',
+  APTO_CONDICIONAL: 'badge warn',
+  NO_APTO: 'badge bad',
+};
+
+export const JOURNEY_STATE_CLASS = {
+  'En espera': 'badge',
+  'En proceso': 'badge active',
+  'Cierre final': 'badge complete',
+};
 
 export const ATTENTION_IN_PROGRESS = 'En atención';
 export const EVALUATION_PENDING = 'PENDIENTE';
@@ -67,6 +85,28 @@ export function isClosed(journey) {
   return journey.journey.state === JOURNEY_CLOSED;
 }
 
+export function previousSpecialty(specialty) {
+  const index = SPECIALTIES.indexOf(specialty);
+
+  return index > 0 ? SPECIALTIES[index - 1] : null;
+}
+
+export function sequenceBlocker(journey, specialty) {
+  const previous = previousSpecialty(specialty);
+
+  if (!previous) {
+    return null;
+  }
+
+  const evaluation = evaluationOf(journey, previous);
+
+  if (!evaluation || evaluation.state === EVALUATION_COMPLETE) {
+    return null;
+  }
+
+  return `Primero completá ${specialtyLabel(previous)}.`;
+}
+
 export function canStart(journey, specialty) {
   const evaluation = evaluationOf(journey, specialty);
 
@@ -99,4 +139,13 @@ export function canComplete(journey, specialty) {
 
 export function canSaveReport(journey, specialty) {
   return !isClosed(journey) && Boolean(latestAttentionOf(journey, specialty));
+}
+
+export function needsFinalizeConfirmation(journey, specialty) {
+  const evaluation = evaluationOf(journey, specialty);
+  const report = reportOf(journey, specialty);
+  const missingReport = !report || report.reportState !== REPORT_COMPLETE;
+  const missingResult = canRecordResult(specialty) && !evaluation?.result;
+
+  return missingReport || Boolean(missingResult);
 }

@@ -38,6 +38,66 @@ export class QueueQueryService {
     }));
   }
 
+  async listOverview() {
+    const journeys = await this.prisma.client.recorrido.findMany({
+      orderBy: { queuedAt: 'desc' },
+      take: 50,
+      select: {
+        numeroAtencion: true,
+        estado: true,
+        queuedAt: true,
+        postulante: { select: { id: true, nombre: true, apellido: true } },
+        atenciones: { select: { estado: true, especialidad: true } },
+        evaluaciones: {
+          select: {
+            estado: true,
+            pendientes: { where: { resueltoAt: null }, select: { id: true } },
+          },
+        },
+        resultadoAptitud: { select: { aptitudFinal: true } },
+        certificado: { select: { id: true } },
+      },
+    });
+
+    return journeys.map((journey) => {
+      const activeAttention = journey.atenciones.find(
+        (attention) => attention.estado === AtencionEstado.EN_ATENCION,
+      );
+      const hasPendingEvaluation = journey.evaluaciones.some(
+        (evaluation) => evaluation.estado === EvaluacionEstado.PENDIENTE,
+      );
+      const derivedState =
+        journey.estado === RecorridoEstado.EN_PROCESO &&
+        !activeAttention &&
+        hasPendingEvaluation
+          ? DerivedJourneyState.waitingForCall
+          : null;
+
+      return {
+        applicant: journey.postulante,
+        attentionNumber: journey.numeroAtencion,
+        state: toJourneyState(journey.estado),
+        derivedState,
+        queuedAt: journey.queuedAt,
+        activeSpecialty: activeAttention?.especialidad ?? null,
+        evaluations: {
+          total: journey.evaluaciones.length,
+          complete: journey.evaluaciones.filter(
+            (evaluation) => evaluation.estado === EvaluacionEstado.COMPLETA,
+          ).length,
+        },
+        openPendings: journey.evaluaciones.reduce(
+          (total, evaluation) => total + evaluation.pendientes.length,
+          0,
+        ),
+        finalAptitude: journey.resultadoAptitud
+          ? toAptitudeState(journey.resultadoAptitud.aptitudFinal)
+          : null,
+        certificateIssued: Boolean(journey.certificado),
+      };
+    });
+  }
+
   async findJourney(applicantId?: string, attentionNumber?: string) {
     if (Boolean(applicantId) === Boolean(attentionNumber)) {
       throw new BadRequestException('Provide exactly one of applicantId or attentionNumber.');
