@@ -138,6 +138,10 @@ export function canComplete(journey, specialty) {
   return specialty === 'BIOQUIMICA' || Boolean(evaluation.result);
 }
 
+export function hasAttentionFor(journey, specialty) {
+  return Boolean(latestAttentionOf(journey, specialty));
+}
+
 export function canSaveReport(journey, specialty) {
   return !isClosed(journey) && Boolean(latestAttentionOf(journey, specialty));
 }

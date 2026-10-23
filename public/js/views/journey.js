@@ -302,13 +302,14 @@ export async function renderJourney(container, attentionNumber, ctx) {
     if (
       !blocker &&
       evaluation &&
+      map.hasAttentionFor(journey, specialty) &&
       map.canRecordResult(specialty) &&
       evaluation.state !== map.EVALUATION_COMPLETE
     ) {
       nodes.push(resultRow(specialty, evaluation));
     }
 
-    if (!blocker && evaluation) {
+    if (!blocker && evaluation && map.hasAttentionFor(journey, specialty)) {
       nodes.push(completionRow(specialty, evaluation));
     }
 
