@@ -7,6 +7,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
 import { RecitationsService, ScheduleRecitationInput } from './recitations.service';
 
@@ -18,12 +19,28 @@ interface ScheduleRecitationBody {
   fin?: unknown;
 }
 
+@ApiTags('Recitations')
 @Controller()
 export class RecitationsController {
   constructor(private readonly recitationsService: RecitationsService) {}
 
   @Post('journeys/:id/recitations')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Schedule a recitation that resolves a pending' })
+  @ApiParam({ name: 'id', description: 'Journey id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['pendingId', 'professionalId', 'inicio', 'fin'],
+      properties: {
+        pendingId: { type: 'string' },
+        evaluationId: { type: 'string', nullable: true },
+        professionalId: { type: 'string' },
+        inicio: { type: 'string', format: 'date-time' },
+        fin: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
   schedule(@Param('id') journeyId: string, @Body() body: ScheduleRecitationBody) {
     return this.recitationsService.schedule(journeyId, this.validate(body));
   }

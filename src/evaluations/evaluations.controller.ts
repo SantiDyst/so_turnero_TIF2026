@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ResultadoEspecialidad } from '@prisma/client';
 
 import {
@@ -29,27 +30,61 @@ function isSpecialtyResult(value: string): value is ResultadoEspecialidad {
   return (Object.values(ResultadoEspecialidad) as string[]).includes(value);
 }
 
+@ApiTags('Evaluations')
 @Controller()
 export class EvaluationsController {
   constructor(private readonly evaluationsService: EvaluationsService) {}
 
   @Post('attentions/:id/pendings')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Record an open pending on an attention' })
+  @ApiParam({ name: 'id', description: 'Attention id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['motivo'],
+      properties: {
+        motivo: { type: 'string', example: 'Falta resultado de laboratorio' },
+        fechaLimite: { type: 'string', format: 'date-time', nullable: true },
+      },
+    },
+  })
   createPending(@Param('id') attentionId: string, @Body() body: CreatePendingBody) {
     return this.evaluationsService.createPending(attentionId, this.validatePending(body));
   }
 
   @Patch('pendings/:id/resolve')
+  @ApiOperation({ summary: 'Resolve an open pending' })
+  @ApiParam({ name: 'id', description: 'Pending id' })
   resolvePending(@Param('id') pendingId: string) {
     return this.evaluationsService.resolvePending(pendingId);
   }
 
   @Patch('evaluations/:id/result')
+  @ApiOperation({ summary: 'Store the specialty result of an evaluation' })
+  @ApiParam({ name: 'id', description: 'Evaluation id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['resultado'],
+      properties: {
+        resultado: {
+          type: 'string',
+          enum: ['APTO_PLENO', 'APTO_CONDICIONAL', 'NO_APTO'],
+        },
+      },
+    },
+  })
   setResult(@Param('id') evaluationId: string, @Body() body: SetEvaluationResultBody) {
     return this.evaluationsService.setResult(evaluationId, this.validateResult(body));
   }
 
   @Patch('evaluations/:id/complete')
+  @ApiOperation({
+    summary:
+      'Complete an evaluation when its work is closed (no pendings, required result present)',
+  })
+  @ApiParam({ name: 'id', description: 'Evaluation id' })
   complete(@Param('id') evaluationId: string) {
     return this.evaluationsService.complete(evaluationId);
   }

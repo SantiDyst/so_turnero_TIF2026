@@ -1,6 +1,6 @@
 # SO Turnero
 
-Prototipo académico (MVP) del Sistema de Salud Ocupacional (SO) — gestión de un
+Prototipo académico (MVP) del Sistema de Salud Ocupacional (SO): gestión de un
 turnero de postulantes que recorren evaluaciones de Bioquímica, Clínica Médica y
 Psicología hasta obtener una aptitud final y un certificado demostrativo.
 
@@ -9,18 +9,42 @@ Psicología hasta obtener una aptitud final y un certificado demostrativo.
 
 ## Stack
 
-- **Backend:** NestJS + TypeScript (API-first; la UI queda para una etapa posterior).
-- **Persistencia:** PostgreSQL administrado, acceso vía Prisma ORM.
-- **Despliegue:** Vercel (backend). Proveedor de PostgreSQL pendiente de selección.
+- **Backend:** NestJS + TypeScript.
+- **Persistencia:** PostgreSQL administrado (Neon), acceso vía Prisma ORM.
+- **Despliegue:** Vercel (API serverless + consola estática).
 
 ## Estado
 
-En fase de **planificación**, dirigida por specs (Spec-Driven Development / OpenSpec).
-No hay código de aplicación todavía.
+Circuito RF-01..RF-16 implementado y desplegado. Incluye una consola de
+verificación provisoria (HTML + ES modules, sin build) para probar el recorrido
+completo de un postulante desde el navegador.
+
+- API: https://so-turnero.vercel.app
+- Documentación interactiva: https://so-turnero.vercel.app/docs
+- Consola: https://so-turnero.vercel.app
+
+La consola es pública, sin autenticación ni roles: es una herramienta de
+verificación, no un producto final. La UI definitiva se planificará aparte.
+
+## Scripts
+
+| Comando                       | Descripción                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `npm run start:dev`           | API en desarrollo, sirve también `public/` en el mismo origen                 |
+| `npm test`                    | Unit + UI + integración + e2e                                                 |
+| `npm run build`               | Compila con Nest                                                              |
+| `npm run demo:reset`          | Muestra conteos de la demo (dry run)                                          |
+| `npm run demo:reset -- --yes` | Borra recorridos y postulantes, libera profesionales y reinicia la numeración |
+| `npm run seed:professionals`  | Carga un profesional demo por especialidad                                    |
+
+Las migraciones se aplican automáticamente en el build de producción de Vercel
+(`npm run vercel-build`).
 
 ## Estructura
 
-- `docs/requisitos/` — documentos fuente (requisitos, casos de uso, historias, mapa conceptual).
+- `src/` — API NestJS por módulo (applicants, journeys, attentions, evaluations, reports, certificates, aptitude, agenda, derivations).
+- `public/` — consola de verificación servida en el mismo origen.
+- `docs/` — requisitos fuente y walkthrough funcional.
 - `openspec/` — artefactos del ciclo SDD (proposals, specs, design, tasks).
 
 ## Fuentes

@@ -8,6 +8,7 @@ import {
   Param,
   Put,
 } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InformeEstado } from '@prisma/client';
 
 import { InformeState } from '../shared/state-vocabulary';
@@ -30,18 +31,33 @@ function toInformeEstado(value: unknown): InformeEstado {
   throw new BadRequestException('state must be Pendiente or Completo.');
 }
 
+@ApiTags('Reports')
 @Controller()
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Put('attentions/:id/report')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create or update the report of an attention' })
+  @ApiParam({ name: 'id', description: 'Attention id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        observations: { type: 'string', example: 'Sin hallazgos relevantes.' },
+        state: { type: 'string', enum: ['Pendiente', 'Completo'], default: 'Pendiente' },
+        professionalId: { type: 'string', nullable: true },
+      },
+    },
+  })
   save(@Param('id') attentionId: string, @Body() body: SaveReportBody) {
     return this.reportsService.saveReport(attentionId, this.validate(body));
   }
 
   @Get('journeys/:id/reports')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Read the three specialty reports of a journey' })
+  @ApiParam({ name: 'id', description: 'Journey id' })
   list(@Param('id') journeyId: string) {
     return this.reportsService.listJourneyReports(journeyId);
   }

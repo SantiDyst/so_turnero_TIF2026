@@ -6,12 +6,14 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 
 import { AppModule } from '../src/app.module';
+import { setupSwagger } from '../src/swagger';
 
 let handlerPromise: Promise<RequestHandler> | undefined;
 
 async function createHandler(): Promise<RequestHandler> {
   const expressApp = express();
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
+  setupSwagger(app);
   await app.init();
   return expressApp;
 }

@@ -8,6 +8,7 @@ import {
   Post,
   Res,
 } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
 import { CertificatesService, IssueCertificateInput } from './certificates.service';
@@ -16,11 +17,28 @@ interface IssueCertificateBody {
   professionalId?: unknown;
 }
 
+@ApiTags('Certificates')
 @Controller()
 export class CertificatesController {
   constructor(private readonly certificatesService: CertificatesService) {}
 
   @Post('journeys/:id/certificate')
+  @ApiOperation({
+    summary: 'Issue the final certificate (idempotent: 201 on first issue, 200 afterwards)',
+  })
+  @ApiParam({ name: 'id', description: 'Journey id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        professionalId: {
+          type: 'string',
+          nullable: true,
+          description: 'Optional CLINICA_MEDICA professional id',
+        },
+      },
+    },
+  })
   async issue(
     @Param('id') journeyId: string,
     @Body() body: IssueCertificateBody,
@@ -33,6 +51,8 @@ export class CertificatesController {
   }
 
   @Get('journeys/:id/certificate')
+  @ApiOperation({ summary: 'Read the issued certificate of a journey' })
+  @ApiParam({ name: 'id', description: 'Journey id' })
   read(@Param('id') journeyId: string) {
     return this.certificatesService.read(journeyId);
   }
