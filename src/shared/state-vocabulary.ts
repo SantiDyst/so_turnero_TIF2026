@@ -13,6 +13,7 @@ export const JourneyState = {
   waiting: 'En espera',
   inProgress: 'En proceso',
   closed: 'Cierre final',
+  annulled: 'Anulada',
 } as const;
 
 export const DerivedJourneyState = {
@@ -66,6 +67,7 @@ const journeyStates: Record<RecorridoEstado, (typeof JourneyState)[keyof typeof 
   [RecorridoEstado.EN_ESPERA]: JourneyState.waiting,
   [RecorridoEstado.EN_PROCESO]: JourneyState.inProgress,
   [RecorridoEstado.CIERRE_FINAL]: JourneyState.closed,
+  [RecorridoEstado.ANULADA]: JourneyState.annulled,
 };
 
 const attentionStates: Record<

@@ -125,3 +125,28 @@ test('reports need a started attention and a closed journey disables starts', ()
   assert.equal(map.isClosed(closed), true);
   assert.equal(map.canStart(closed, 'BIOQUIMICA'), false);
 });
+
+test('annulled journeys reject starts and expose the reason', () => {
+  const annulled = journey({
+    journey: {
+      id: 'journey-1',
+      attentionNumber: 'AT-0001',
+      state: 'Anulada',
+      annulledReason: 'Desisti�',
+    },
+  });
+
+  assert.equal(map.isAnnulled(annulled), true);
+  assert.equal(map.isClosed(annulled), true);
+  assert.equal(map.canStart(annulled, 'BIOQUIMICA'), false);
+});
+
+test('management actions depend on state and recorded attentions', () => {
+  assert.equal(map.entryCanAnnul({ state: 'En espera', activeSpecialty: null }), true);
+  assert.equal(map.entryCanAnnul({ state: 'En proceso', activeSpecialty: 'BIOQUIMICA' }), false);
+  assert.equal(map.entryCanAnnul({ state: 'Cierre final', activeSpecialty: null }), false);
+  assert.equal(map.entryCanAnnul({ state: 'Anulada', activeSpecialty: null }), false);
+
+  assert.equal(map.entryCanDelete({ attentionCount: 0 }), true);
+  assert.equal(map.entryCanDelete({ attentionCount: 2 }), false);
+});

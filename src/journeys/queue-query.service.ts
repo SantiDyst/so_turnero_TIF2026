@@ -43,9 +43,12 @@ export class QueueQueryService {
       orderBy: { queuedAt: 'desc' },
       take: 50,
       select: {
+        id: true,
         numeroAtencion: true,
         estado: true,
         queuedAt: true,
+        motivoAnulacion: true,
+        anuladaAt: true,
         postulante: { select: { id: true, nombre: true, apellido: true } },
         atenciones: { select: { estado: true, especialidad: true } },
         evaluaciones: {
@@ -72,12 +75,16 @@ export class QueueQueryService {
           : null;
 
       return {
+        journeyId: journey.id,
         applicant: journey.postulante,
         attentionNumber: journey.numeroAtencion,
         state: toJourneyState(journey.estado),
         derivedState,
         queuedAt: journey.queuedAt,
         activeSpecialty: activeAttention?.especialidad ?? null,
+        attentionCount: journey.atenciones.length,
+        annulledReason: journey.motivoAnulacion,
+        annulledAt: journey.anuladaAt,
         evaluations: {
           total: journey.evaluaciones.length,
           complete: journey.evaluaciones.filter(
@@ -174,6 +181,8 @@ export class QueueQueryService {
         state: toJourneyState(journey.estado),
         derivedState,
         queuedAt: journey.queuedAt,
+        annulledReason: journey.motivoAnulacion,
+        annulledAt: journey.anuladaAt,
       },
       attentions: journey.atenciones.map((attention) => ({
         id: attention.id,

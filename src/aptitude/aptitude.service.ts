@@ -184,6 +184,9 @@ export class AptitudeService {
       if (journey.estado === RecorridoEstado.CIERRE_FINAL) {
         throw new ConflictException('Journey is already closed.');
       }
+      if (journey.estado === RecorridoEstado.ANULADA) {
+        throw new ConflictException('Journey is annulled and cannot be closed.');
+      }
 
       const readiness = this.buildReadiness(journey);
       if (!readiness.canClose) {

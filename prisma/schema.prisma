@@ -10,6 +10,7 @@ enum RecorridoEstado {
   EN_ESPERA    @map("En espera")
   EN_PROCESO   @map("En proceso")
   CIERRE_FINAL @map("Cierre final")
+  ANULADA      @map("Anulada")
 }
 
 enum AtencionEstado {
@@ -72,6 +73,8 @@ model Recorrido {
   numeroAtencion   String           @unique
   estado           RecorridoEstado  @default(EN_ESPERA)
   queuedAt         DateTime         @default(now())
+  anuladaAt        DateTime?
+  motivoAnulacion  String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   postulante       Postulante       @relation(fields: [postulanteId], references: [id], onDelete: Cascade)

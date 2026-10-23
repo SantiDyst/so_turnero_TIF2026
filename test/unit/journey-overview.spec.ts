@@ -17,6 +17,7 @@ function serviceWith(journeys: unknown[]) {
 
 function journeyFixture(overrides: Record<string, unknown> = {}) {
   return {
+    id: 'journey-1',
     numeroAtencion: 'AT-2000',
     estado: RecorridoEstado.EN_PROCESO,
     queuedAt: new Date('2026-10-23T10:00:00.000Z'),
@@ -25,6 +26,8 @@ function journeyFixture(overrides: Record<string, unknown> = {}) {
     evaluaciones: [],
     resultadoAptitud: null,
     certificado: null,
+    motivoAnulacion: null,
+    anuladaAt: null,
     ...overrides,
   };
 }
@@ -50,12 +53,16 @@ describe('journey overview', () => {
 
     await expect(service.listOverview()).resolves.toEqual([
       {
+        journeyId: 'journey-1',
         applicant: { id: 'applicant-1', nombre: 'Ada', apellido: 'Lovelace' },
         attentionNumber: 'AT-2000',
         state: 'En proceso',
         derivedState: null,
         queuedAt: new Date('2026-10-23T10:00:00.000Z'),
         activeSpecialty: Especialidad.CLINICA_MEDICA,
+        attentionCount: 1,
+        annulledReason: null,
+        annulledAt: null,
         evaluations: { total: 2, complete: 1 },
         openPendings: 1,
         finalAptitude: 'APTO_CONDICIONAL',

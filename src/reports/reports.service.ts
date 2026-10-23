@@ -74,6 +74,9 @@ export class ReportsService {
       if (journey.estado === JourneyState.closed) {
         throw new ConflictException('Journey is closed and cannot accept report changes.');
       }
+      if (journey.estado === JourneyState.annulled) {
+        throw new ConflictException('Journey is annulled and cannot accept report changes.');
+      }
 
       const professionalId = input.professionalId ?? attention.profesionalId;
       if (input.professionalId) {

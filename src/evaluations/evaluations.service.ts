@@ -208,6 +208,9 @@ export class EvaluationsService {
     if (journey.estado === JourneyState.closed) {
       throw new ConflictException('Journey is closed and cannot accept evaluation changes.');
     }
+    if (journey.estado === JourneyState.annulled) {
+      throw new ConflictException('Journey is annulled and cannot accept evaluation changes.');
+    }
   }
 
   private toPendingResponse(pending: Pendiente) {
