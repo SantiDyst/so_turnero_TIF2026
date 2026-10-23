@@ -5,6 +5,7 @@
   "description": "API-first backend for the SO Turnero academic MVP",
   "scripts": {
     "build": "nest build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "lint": "eslint \"{src,api,scripts,test}/**/*.ts\"",
@@ -16,8 +17,10 @@
     "smoke:di": "cross-env DATABASE_URL=postgresql://runtime:runtime@ep-runtime-pooler.us-east-2.aws.neon.tech/so_turnero?sslmode=require tsx scripts/di-smoke.ts",
     "smoke:health": "cross-env DATABASE_URL=postgresql://runtime:runtime@ep-runtime-pooler.us-east-2.aws.neon.tech/so_turnero?sslmode=require tsx scripts/health-smoke.ts",
     "seed:professionals": "tsx scripts/seed-professionals.ts",
-    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "demo:reset": "tsx scripts/reset-demo.ts",
+    "test": "npm run test:unit && npm run test:ui && npm run test:integration && npm run test:e2e",
     "test:unit": "jest --runInBand --selectProjects unit",
+    "test:ui": "node --test \"test/ui/*.test.mjs\"",
     "test:integration": "jest --runInBand --selectProjects integration",
     "test:e2e": "jest --runInBand --selectProjects e2e"
   },
