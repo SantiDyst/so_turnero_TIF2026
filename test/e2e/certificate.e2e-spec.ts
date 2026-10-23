@@ -40,6 +40,19 @@ describe('final certificate HTTP API', () => {
       Especialidad.PSICOLOGIA,
     ]) {
       const evaluation = evaluations.find((item) => item.specialty === specialty)!;
+      const professional = await prisma.client.profesional.create({
+        data: { nombre: `Certificate ${specialty}`, especialidad: specialty },
+      });
+      const started = await request(app.getHttpServer())
+        .post(`/journeys/${journeyId}/attentions`)
+        .send({ specialty, professionalId: professional.id })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/attentions/${started.body.attentionId}/finalize`)
+        .send({ state: 'Finalizada' })
+        .expect(200);
+
       if (specialty === Especialidad.CLINICA_MEDICA) {
         await request(app.getHttpServer())
           .patch(`/evaluations/${evaluation.id}/result`)
@@ -82,7 +95,9 @@ describe('final certificate HTTP API', () => {
         applicant: expect.objectContaining({ id: applicantId }),
         finalAptitude: 'APTO_CONDICIONAL',
         issuedAt: expect.any(String),
-        responsibleProfessional: null,
+        responsibleProfessional: expect.objectContaining({
+          nombre: 'Certificate CLINICA_MEDICA',
+        }),
       }),
     );
 

@@ -13,6 +13,7 @@ import { EvaluationsService } from '../../src/evaluations/evaluations.service';
 import { QueueQueryService } from '../../src/journeys/queue-query.service';
 import { ProfessionalsService } from '../../src/professionals/professionals.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { ensureAttention } from '../support/attendance';
 import { assertIsolatedSchema } from '../support/runtime';
 
 describe('final aptitude and closure database invariants', () => {
@@ -55,6 +56,7 @@ describe('final aptitude and closure database invariants', () => {
     result?: ResultadoEspecialidad,
   ) {
     const evaluation = await evaluationOf(journeyId, specialty);
+    await ensureAttention(prisma, journeyId, specialty);
     if (result) {
       await evaluations.setResult(evaluation.id, { resultado: result });
     }
@@ -144,6 +146,8 @@ describe('final aptitude and closure database invariants', () => {
 
     const clinical = await evaluationOf(registered.journey.id, Especialidad.CLINICA_MEDICA);
     const psychological = await evaluationOf(registered.journey.id, Especialidad.PSICOLOGIA);
+    await ensureAttention(prisma, registered.journey.id, Especialidad.CLINICA_MEDICA);
+    await ensureAttention(prisma, registered.journey.id, Especialidad.PSICOLOGIA);
     await evaluations.setResult(clinical.id, {
       resultado: ResultadoEspecialidad.APTO_CONDICIONAL,
     });

@@ -43,10 +43,11 @@ function evaluationRow(overrides: AnyRecord = {}): AnyRecord {
   };
 }
 
-function completionTransaction(row: AnyRecord, openPendings = 0) {
+function completionTransaction(row: AnyRecord, openPendings = 0, attentions = 1) {
   return {
     $queryRaw: jest.fn().mockResolvedValue([row]),
     pendiente: { count: jest.fn().mockResolvedValue(openPendings) },
+    atencion: { count: jest.fn().mockResolvedValue(attentions) },
     evaluacion: {
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(async ({ data }: { data: AnyRecord }) => ({ ...row, ...data })),
@@ -212,6 +213,14 @@ describe('evaluation completion gate', () => {
     expect(transaction.pendiente.count).not.toHaveBeenCalled();
   });
 
+  it('rejects completion without a started attention', async () => {
+    const transaction = completionTransaction(evaluationRow(), 0, 0);
+    const service = new EvaluationsService(makePrisma(transaction));
+
+    await expect(service.complete('evaluation-1')).rejects.toThrow(ConflictException);
+    expect(transaction.evaluacion.update).not.toHaveBeenCalled();
+  });
+
   it('completes Bioquimica without a specialty result', async () => {
     const transaction = completionTransaction(
       evaluationRow({ especialidad: Especialidad.BIOQUIMICA, resultado: null }),
@@ -261,10 +270,28 @@ describe('evaluation result storage', () => {
     expect(transaction.evaluacion.update).not.toHaveBeenCalled();
   });
 
+  it('rejects a result without a started attention', async () => {
+    const row = evaluationRow({ especialidad: Especialidad.PSICOLOGIA });
+    const transaction = {
+      $queryRaw: jest.fn().mockResolvedValue([row]),
+      atencion: { count: jest.fn().mockResolvedValue(0) },
+      evaluacion: {
+        update: jest.fn(),
+      },
+    };
+    const service = new EvaluationsService(makePrisma(transaction));
+
+    await expect(
+      service.setResult('evaluation-1', { resultado: ResultadoEspecialidad.APTO_PLENO }),
+    ).rejects.toThrow(ConflictException);
+    expect(transaction.evaluacion.update).not.toHaveBeenCalled();
+  });
+
   it('stores a result without completing the evaluation', async () => {
     const row = evaluationRow({ especialidad: Especialidad.PSICOLOGIA });
     const transaction = {
       $queryRaw: jest.fn().mockResolvedValue([row]),
+      atencion: { count: jest.fn().mockResolvedValue(1) },
       evaluacion: {
         update: jest.fn(async ({ data }: { data: AnyRecord }) => ({ ...row, ...data })),
       },

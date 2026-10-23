@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import {
   AtencionEstado,
   Especialidad,
+  EvaluacionEstado,
   RecorridoEstado,
   ResultadoEspecialidad,
 } from '@prisma/client';
@@ -13,6 +14,7 @@ import { CertificatesService } from '../../src/certificates/certificates.service
 import { EvaluationsService } from '../../src/evaluations/evaluations.service';
 import { ProfessionalsService } from '../../src/professionals/professionals.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { ensureAttention } from '../support/attendance';
 import { assertIsolatedSchema } from '../support/runtime';
 
 describe('final certificate persistence', () => {
@@ -51,6 +53,7 @@ describe('final certificate persistence', () => {
     const evaluation = await prisma.client.evaluacion.findUniqueOrThrow({
       where: { recorridoId_especialidad: { recorridoId: journeyId, especialidad: specialty } },
     });
+    await ensureAttention(prisma, journeyId, specialty);
     if (result) {
       await evaluations.setResult(evaluation.id, { resultado: result });
     }
@@ -168,9 +171,33 @@ describe('final certificate persistence', () => {
 
   it('issues with a null professional when the journey has no clinical attention', async () => {
     const registered = await registerJourney('Null Professional');
-    await closeJourney(registered.journey.id);
+    const journeyId = registered.journey.id;
 
-    const issued = await certificates.issue(registered.journey.id, {});
+    await prisma.client.evaluacion.updateMany({
+      where: {
+        recorridoId: journeyId,
+        especialidad: { in: [Especialidad.CLINICA_MEDICA, Especialidad.PSICOLOGIA] },
+      },
+      data: { resultado: ResultadoEspecialidad.APTO_PLENO },
+    });
+    await prisma.client.evaluacion.updateMany({
+      where: { recorridoId: journeyId },
+      data: { estado: EvaluacionEstado.COMPLETA, completadaAt: new Date() },
+    });
+    await prisma.client.resultadoAptitud.create({
+      data: {
+        recorridoId: journeyId,
+        resultadoClinico: ResultadoEspecialidad.APTO_PLENO,
+        resultadoPsicologico: ResultadoEspecialidad.APTO_PLENO,
+        aptitudFinal: ResultadoEspecialidad.APTO_PLENO,
+      },
+    });
+    await prisma.client.recorrido.update({
+      where: { id: journeyId },
+      data: { estado: RecorridoEstado.CIERRE_FINAL },
+    });
+
+    const issued = await certificates.issue(journeyId, {});
 
     expect(issued.created).toBe(true);
     expect(issued.certificate.responsibleProfessional).toBeNull();

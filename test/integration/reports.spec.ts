@@ -8,6 +8,7 @@ import { EvaluationsService } from '../../src/evaluations/evaluations.service';
 import { ProfessionalsService } from '../../src/professionals/professionals.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { ReportsService } from '../../src/reports/reports.service';
+import { ensureAttention } from '../support/attendance';
 import { assertIsolatedSchema } from '../support/runtime';
 
 describe('specialty reports persistence', () => {
@@ -57,6 +58,7 @@ describe('specialty reports persistence', () => {
     const evaluation = await prisma.client.evaluacion.findUniqueOrThrow({
       where: { recorridoId_especialidad: { recorridoId: journeyId, especialidad: specialty } },
     });
+    await ensureAttention(prisma, journeyId, specialty);
     if (result) {
       await evaluations.setResult(evaluation.id, { resultado: result });
     }

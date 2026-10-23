@@ -150,3 +150,21 @@ test('management actions depend on state and recorded attentions', () => {
   assert.equal(map.entryCanDelete({ attentionCount: 0 }), true);
   assert.equal(map.entryCanDelete({ attentionCount: 2 }), false);
 });
+
+test('results require a started attention for the specialty', () => {
+  assert.equal(map.hasAttentionFor(journey(), 'CLINICA_MEDICA'), false);
+
+  const attended = journey({
+    attentions: [
+      {
+        id: 'attention-1',
+        specialty: 'CLINICA_MEDICA',
+        state: 'En atención',
+        professional: { id: 'pro-1', name: 'Dr. Clinical' },
+      },
+    ],
+  });
+
+  assert.equal(map.hasAttentionFor(attended, 'CLINICA_MEDICA'), true);
+  assert.equal(map.hasAttentionFor(attended, 'PSICOLOGIA'), false);
+});

@@ -5,6 +5,7 @@ import { AptitudeService } from '../../src/aptitude/aptitude.service';
 import { RegistrationService } from '../../src/applicants/registration.service';
 import { EvaluationsService } from '../../src/evaluations/evaluations.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { ensureAttention } from '../support/attendance';
 import { assertIsolatedSchema } from '../support/runtime';
 
 describe('closure race database invariants', () => {
@@ -29,6 +30,7 @@ describe('closure race database invariants', () => {
     const evaluation = await prisma.client.evaluacion.findUniqueOrThrow({
       where: { recorridoId_especialidad: { recorridoId: journeyId, especialidad: specialty } },
     });
+    await ensureAttention(prisma, journeyId, specialty);
     if (result) {
       await evaluations.setResult(evaluation.id, { resultado: result });
     }

@@ -131,6 +131,7 @@ export class EvaluationsService {
         throw new ConflictException('Evaluation is already complete.');
       }
       await this.assertJourneyOpen(transaction, evaluation.recorridoId);
+      await this.assertAttentionStarted(transaction, evaluation.id, 'recording a result');
 
       const updated = await transaction.evaluacion.update({
         where: { id: evaluation.id },
@@ -149,6 +150,7 @@ export class EvaluationsService {
         throw new ConflictException('Evaluation is already complete.');
       }
       await this.assertJourneyOpen(transaction, evaluation.recorridoId);
+      await this.assertAttentionStarted(transaction, evaluation.id, 'completing the evaluation');
 
       const openPendings = await transaction.pendiente.count({
         where: { evaluacionId: evaluation.id, resueltoAt: null },
@@ -191,6 +193,18 @@ export class EvaluationsService {
     }
 
     return evaluation;
+  }
+
+  private async assertAttentionStarted(
+    transaction: Prisma.TransactionClient,
+    evaluationId: string,
+    action: string,
+  ): Promise<void> {
+    const attentions = await transaction.atencion.count({ where: { evaluacionId: evaluationId } });
+
+    if (attentions === 0) {
+      throw new ConflictException(`Start an attention before ${action}.`);
+    }
   }
 
   private async assertJourneyOpen(
