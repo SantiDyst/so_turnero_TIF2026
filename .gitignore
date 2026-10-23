@@ -46,3 +46,5 @@ Thumbs.db
 
 # Agent-local indexes
 .atl/
+.env
+.env.local
