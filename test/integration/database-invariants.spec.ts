@@ -40,7 +40,9 @@ describe('isolated database invariants', () => {
 
   it('enforces the partial active-attention index and rolls back a failing aggregate', async () => {
     const applicant = await registration.register({ nombre: 'Cai', apellido: 'Three', dni: '300' });
-    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. Index', especialidad: Especialidad.CLINICA_MEDICA } });
+    const professional = await prisma.client.profesional.create({
+      data: { nombre: 'Dr. Index', especialidad: Especialidad.CLINICA_MEDICA },
+    });
     await prisma.client.atencion.create({
       data: {
         recorridoId: applicant.journey.id,

@@ -59,8 +59,7 @@ export class ReservationsController {
   }
 
   private validateCreate(body: CreateReservationBody): CreateReservationInput {
-    const recitacionId =
-      typeof body.recitacionId === 'string' ? body.recitacionId.trim() : '';
+    const recitacionId = typeof body.recitacionId === 'string' ? body.recitacionId.trim() : '';
     if (recitacionId.length === 0) {
       throw new BadRequestException('recitacionId is required.');
     }
@@ -98,9 +97,7 @@ export class ReservationsController {
       inicio,
       fin,
       professionalId:
-        typeof body.professionalId === 'string'
-          ? body.professionalId.trim()
-          : undefined,
+        typeof body.professionalId === 'string' ? body.professionalId.trim() : undefined,
     };
   }
 

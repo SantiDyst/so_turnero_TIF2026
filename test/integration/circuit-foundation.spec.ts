@@ -109,12 +109,10 @@ describe('circuit foundation database invariants', () => {
       ),
     ).rejects.toBeTruthy();
 
-    expect(
-      await prisma.client.profesional.count({ where: { nombre: 'Invalid Specialty' } }),
-    ).toBe(0);
-    expect(
-      await prisma.client.profesional.count({ where: { nombre: 'No Specialty' } }),
-    ).toBe(0);
+    expect(await prisma.client.profesional.count({ where: { nombre: 'Invalid Specialty' } })).toBe(
+      0,
+    );
+    expect(await prisma.client.profesional.count({ where: { nombre: 'No Specialty' } })).toBe(0);
   });
 
   it('preserves the active-attention index and adds circuit uniqueness', async () => {

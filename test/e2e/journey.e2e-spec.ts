@@ -86,8 +86,12 @@ describe('first functional journey HTTP API', () => {
   it('starts and finalizes attention while enforcing professional and transition conflicts', async () => {
     const first = await registerApplicant('E2E Start');
     const second = await registerApplicant('E2E Busy');
-    const professional = await prisma.client.profesional.create({ data: { nombre: 'Dr. E2E', especialidad: Especialidad.CLINICA_MEDICA } });
-    const alternate = await prisma.client.profesional.create({ data: { nombre: 'Dr. Alternate', especialidad: Especialidad.CLINICA_MEDICA } });
+    const professional = await prisma.client.profesional.create({
+      data: { nombre: 'Dr. E2E', especialidad: Especialidad.CLINICA_MEDICA },
+    });
+    const alternate = await prisma.client.profesional.create({
+      data: { nombre: 'Dr. Alternate', especialidad: Especialidad.CLINICA_MEDICA },
+    });
 
     const started = await request(app.getHttpServer())
       .post(`/journeys/${first.journey.id}/attentions`)
@@ -150,8 +154,8 @@ describe('first functional journey HTTP API', () => {
     const [firstProfessional, secondProfessional] = await Promise.all(
       ['Dr. Race One', 'Dr. Race Two'].map((nombre) =>
         prisma.client.profesional.create({
-        data: { nombre, especialidad: Especialidad.CLINICA_MEDICA },
-      }),
+          data: { nombre, especialidad: Especialidad.CLINICA_MEDICA },
+        }),
       ),
     );
     const start = (professionalId: string) =>

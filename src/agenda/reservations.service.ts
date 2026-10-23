@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  AtencionEstado,
-  Especialidad,
-  Prisma,
-  ReservaEstado,
-} from '@prisma/client';
+import { AtencionEstado, Especialidad, Prisma, ReservaEstado } from '@prisma/client';
 
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -190,10 +185,7 @@ export class ReservationsService {
 
         const recitation = await this.loadRecitation(transaction, reservation.recitacionId);
         const professionalId = input.professionalId ?? reservation.profesionalId;
-        const professional = await this.professionalsService.lockById(
-          transaction,
-          professionalId,
-        );
+        const professional = await this.professionalsService.lockById(transaction, professionalId);
         if (professional.especialidad !== recitation.especialidad) {
           throw new BadRequestException(
             'Professional specialty does not match the recitation specialty.',
@@ -305,15 +297,19 @@ export class ReservationsService {
     );
   }
 
-  private toReservationResponse(reservation: LockedReservation | {
-    id: string;
-    profesionalId: string;
-    recitacionId: string | null;
-    inicio: Date;
-    fin: Date;
-    estado: ReservaEstado;
-    reservaAnteriorId: string | null;
-  }) {
+  private toReservationResponse(
+    reservation:
+      | LockedReservation
+      | {
+          id: string;
+          profesionalId: string;
+          recitacionId: string | null;
+          inicio: Date;
+          fin: Date;
+          estado: ReservaEstado;
+          reservaAnteriorId: string | null;
+        },
+  ) {
     return {
       id: reservation.id,
       professionalId: reservation.profesionalId,

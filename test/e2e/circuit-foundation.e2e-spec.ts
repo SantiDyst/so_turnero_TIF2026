@@ -88,9 +88,7 @@ describe('circuit foundation HTTP API', () => {
       Especialidad.CLINICA_MEDICA,
       Especialidad.PSICOLOGIA,
     ]);
-    expect(journey.evaluations.every((evaluation) => evaluation.state === 'PENDIENTE')).toBe(
-      true,
-    );
+    expect(journey.evaluations.every((evaluation) => evaluation.state === 'PENDIENTE')).toBe(true);
     expect(journey.pendings).toEqual([]);
     expect(journey.recitations).toEqual([]);
     expect(journey.reservations).toEqual([]);
@@ -130,7 +128,10 @@ describe('circuit foundation HTTP API', () => {
 
   it('starts specialties sequentially and rejects ineligible starts', async () => {
     const registered = await registerApplicant('E2E Circuit Sequential');
-    const clinical = await createProfessional('Dr. Sequential Clinical', Especialidad.CLINICA_MEDICA);
+    const clinical = await createProfessional(
+      'Dr. Sequential Clinical',
+      Especialidad.CLINICA_MEDICA,
+    );
     const biochemistry = await createProfessional(
       'Dr. Sequential Biochemistry',
       Especialidad.BIOQUIMICA,
@@ -184,13 +185,8 @@ describe('circuit foundation HTTP API', () => {
       where: { id: closed.journey.id },
       data: { estado: RecorridoEstado.CIERRE_FINAL },
     });
-    const closedProfessional = await createProfessional(
-      'Dr. Closed',
-      Especialidad.CLINICA_MEDICA,
-    );
-    await start(closed.journey.id, Especialidad.CLINICA_MEDICA, closedProfessional.id).expect(
-      409,
-    );
+    const closedProfessional = await createProfessional('Dr. Closed', Especialidad.CLINICA_MEDICA);
+    await start(closed.journey.id, Especialidad.CLINICA_MEDICA, closedProfessional.id).expect(409);
   });
 
   it('serializes concurrent same-specialty starts into one active attention', async () => {

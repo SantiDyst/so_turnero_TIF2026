@@ -53,11 +53,7 @@ describe('closure race database invariants', () => {
       Especialidad.CLINICA_MEDICA,
       ResultadoEspecialidad.APTO_PLENO,
     );
-    await completeSpecialty(
-      journeyId,
-      Especialidad.PSICOLOGIA,
-      ResultadoEspecialidad.APTO_PLENO,
-    );
+    await completeSpecialty(journeyId, Especialidad.PSICOLOGIA, ResultadoEspecialidad.APTO_PLENO);
 
     const results = await Promise.allSettled([
       aptitude.close(journeyId),
@@ -74,8 +70,8 @@ describe('closure race database invariants', () => {
       where: { id: journeyId },
     });
     expect(journey.estado).toBe(RecorridoEstado.CIERRE_FINAL);
-    expect(
-      await prisma.client.resultadoAptitud.count({ where: { recorridoId: journeyId } }),
-    ).toBe(1);
+    expect(await prisma.client.resultadoAptitud.count({ where: { recorridoId: journeyId } })).toBe(
+      1,
+    );
   });
 });

@@ -198,9 +198,8 @@ describe('agenda and derivations HTTP API', () => {
       afterReschedule.pendings.find((pending) => pending.id === rescheduled.pendingId)?.resolvedAt,
     ).toBeNull();
     expect(
-      afterReschedule.evaluations.find(
-        (evaluation) => evaluation.id === rescheduled.evaluationId,
-      )?.state,
+      afterReschedule.evaluations.find((evaluation) => evaluation.id === rescheduled.evaluationId)
+        ?.state,
     ).toBe('PENDIENTE');
     expect(
       afterReschedule.reservations.find(
@@ -208,7 +207,8 @@ describe('agenda and derivations HTTP API', () => {
       )?.state,
     ).toBe('REPROGRAMADA');
     expect(
-      afterReschedule.reservations.find((reservation) => reservation.id === newReservationId)?.state,
+      afterReschedule.reservations.find((reservation) => reservation.id === newReservationId)
+        ?.state,
     ).toBe('RESERVADA');
 
     const absent = await scheduleCircuit('Dr. Absent');
@@ -222,7 +222,8 @@ describe('agenda and derivations HTTP API', () => {
       afterAbsent.evaluations.find((evaluation) => evaluation.id === absent.evaluationId)?.state,
     ).toBe('PENDIENTE');
     expect(
-      afterAbsent.reservations.find((reservation) => reservation.id === absent.reservationId)?.state,
+      afterAbsent.reservations.find((reservation) => reservation.id === absent.reservationId)
+        ?.state,
     ).toBe('AUSENTE');
   });
 
@@ -423,8 +424,6 @@ describe('agenda and derivations HTTP API', () => {
       (attention) => attention.recitationId === circuit.recitationId,
     );
     expect(followUps).toHaveLength(1);
-    expect(followUps[0]).toEqual(
-      expect.objectContaining({ id: followUpId, state: 'En atención' }),
-    );
+    expect(followUps[0]).toEqual(expect.objectContaining({ id: followUpId, state: 'En atención' }));
   });
 });

@@ -8,10 +8,7 @@ import {
   Post,
 } from '@nestjs/common';
 
-import {
-  RecitationsService,
-  ScheduleRecitationInput,
-} from './recitations.service';
+import { RecitationsService, ScheduleRecitationInput } from './recitations.service';
 
 interface ScheduleRecitationBody {
   pendingId?: unknown;
@@ -58,8 +55,7 @@ export class RecitationsController {
 
     return {
       pendingId,
-      evaluationId:
-        typeof body.evaluationId === 'string' ? body.evaluationId.trim() : undefined,
+      evaluationId: typeof body.evaluationId === 'string' ? body.evaluationId.trim() : undefined,
       professionalId,
       inicio,
       fin,

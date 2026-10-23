@@ -63,7 +63,10 @@ describe('validation and state vocabulary', () => {
     const service = new AttentionCommandService(prisma, {} as ProfessionalsService);
 
     await expect(
-      service.start('journey', { specialty: Especialidad.CLINICA_MEDICA, professionalId: 'professional' }),
+      service.start('journey', {
+        specialty: Especialidad.CLINICA_MEDICA,
+        professionalId: 'professional',
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });

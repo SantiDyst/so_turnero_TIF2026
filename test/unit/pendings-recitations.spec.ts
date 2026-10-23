@@ -160,12 +160,12 @@ describe('evaluation result validation', () => {
     const service = evaluationsServiceMock();
     const controller = new EvaluationsController(service as never);
 
-    expect(() =>
-      controller.setResult('evaluation-1', { resultado: 'PENDIENTE' }),
-    ).toThrow(BadRequestException);
-    expect(() =>
-      controller.setResult('evaluation-1', { resultado: 'APTO' }),
-    ).toThrow(BadRequestException);
+    expect(() => controller.setResult('evaluation-1', { resultado: 'PENDIENTE' })).toThrow(
+      BadRequestException,
+    );
+    expect(() => controller.setResult('evaluation-1', { resultado: 'APTO' })).toThrow(
+      BadRequestException,
+    );
     expect(service.setResult).not.toHaveBeenCalled();
   });
 
@@ -205,9 +205,7 @@ describe('evaluation completion gate', () => {
   );
 
   it('rejects an evaluation that is already complete', async () => {
-    const transaction = completionTransaction(
-      evaluationRow({ estado: EvaluacionEstado.COMPLETA }),
-    );
+    const transaction = completionTransaction(evaluationRow({ estado: EvaluacionEstado.COMPLETA }));
     const service = new EvaluationsService(makePrisma(transaction));
 
     await expect(service.complete('evaluation-1')).rejects.toThrow(ConflictException);
@@ -295,10 +293,18 @@ describe('recitation scheduling validation', () => {
     const controller = controllerWith(service);
 
     expect(() =>
-      controller.schedule('journey-1', { professionalId: 'professional-1', inicio: scheduleDate, fin: endDate }),
+      controller.schedule('journey-1', {
+        professionalId: 'professional-1',
+        inicio: scheduleDate,
+        fin: endDate,
+      }),
     ).toThrow(BadRequestException);
     expect(() =>
-      controller.schedule('journey-1', { pendingId: 'pending-1', inicio: scheduleDate, fin: endDate }),
+      controller.schedule('journey-1', {
+        pendingId: 'pending-1',
+        inicio: scheduleDate,
+        fin: endDate,
+      }),
     ).toThrow(BadRequestException);
     expect(service.schedule).not.toHaveBeenCalled();
   });
@@ -353,12 +359,14 @@ describe('recitation scheduling guards', () => {
   const inicio = new Date('2026-11-02T09:00:00.000Z');
   const fin = new Date('2026-11-02T09:30:00.000Z');
 
-  function recitationTransaction(overrides: {
-    journeyId?: string;
-    evaluationId?: string;
-    specialty?: Especialidad;
-    resolvedAt?: Date | null;
-  } = {}) {
+  function recitationTransaction(
+    overrides: {
+      journeyId?: string;
+      evaluationId?: string;
+      specialty?: Especialidad;
+      resolvedAt?: Date | null;
+    } = {},
+  ) {
     const specialty = overrides.specialty ?? Especialidad.CLINICA_MEDICA;
     const recitation = {
       id: 'recitation-1',
@@ -416,10 +424,7 @@ describe('recitation scheduling guards', () => {
       }),
     };
     return {
-      service: new RecitationsService(
-        makePrisma(transaction),
-        professionals as never,
-      ),
+      service: new RecitationsService(makePrisma(transaction), professionals as never),
       professionals,
     };
   }

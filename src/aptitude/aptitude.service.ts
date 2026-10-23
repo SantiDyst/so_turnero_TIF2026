@@ -9,11 +9,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  SUPPORTED_SPECIALTIES,
-  toAptitudeState,
-  toJourneyState,
-} from '../shared/state-vocabulary';
+import { SUPPORTED_SPECIALTIES, toAptitudeState, toJourneyState } from '../shared/state-vocabulary';
 
 export interface ClosureReadiness {
   journeyId: string;
@@ -98,17 +94,14 @@ export async function storeJourneyAptitude(
     select: { especialidad: true, estado: true, resultado: true },
   });
 
-  const clinical = evaluations.find(
-    (evaluation) => evaluation.especialidad === CLINICAL_SPECIALTY,
-  );
+  const clinical = evaluations.find((evaluation) => evaluation.especialidad === CLINICAL_SPECIALTY);
   const psychological = evaluations.find(
     (evaluation) => evaluation.especialidad === PSYCHOLOGICAL_SPECIALTY,
   );
   const allComplete = SUPPORTED_SPECIALTIES.every((specialty) =>
     evaluations.some(
       (evaluation) =>
-        evaluation.especialidad === specialty &&
-        evaluation.estado === EvaluacionEstado.COMPLETA,
+        evaluation.especialidad === specialty && evaluation.estado === EvaluacionEstado.COMPLETA,
     ),
   );
 
@@ -209,9 +202,7 @@ export class AptitudeService {
         aptitude: journey.resultadoAptitud
           ? {
               clinicalResult: toAptitudeState(journey.resultadoAptitud.resultadoClinico),
-              psychologicalResult: toAptitudeState(
-                journey.resultadoAptitud.resultadoPsicologico,
-              ),
+              psychologicalResult: toAptitudeState(journey.resultadoAptitud.resultadoPsicologico),
               finalAptitude: toAptitudeState(journey.resultadoAptitud.aptitudFinal),
               calculatedAt: journey.resultadoAptitud.calculatedAt,
             }
@@ -224,8 +215,7 @@ export class AptitudeService {
     const allEvaluationsComplete = SUPPORTED_SPECIALTIES.every((specialty) =>
       journey.evaluaciones.some(
         (evaluation) =>
-          evaluation.especialidad === specialty &&
-          evaluation.estado === EvaluacionEstado.COMPLETA,
+          evaluation.especialidad === specialty && evaluation.estado === EvaluacionEstado.COMPLETA,
       ),
     );
     const clinicalResultPresent = journey.evaluaciones.some(

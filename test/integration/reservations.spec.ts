@@ -229,13 +229,13 @@ describe('protected agenda database invariants', () => {
     await expect(reservations.absent(created.id)).rejects.toBeInstanceOf(ConflictException);
     await expect(reservations.cancel(created.id)).rejects.toBeInstanceOf(ConflictException);
     await expect(reservations.fulfill(created.id)).rejects.toBeInstanceOf(ConflictException);
-    await expect(
-      reservations.reschedule(created.id, interval(18, 19)),
-    ).rejects.toBeInstanceOf(ConflictException);
-
-    await expect(reservations.cancel('00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(
-      NotFoundException,
+    await expect(reservations.reschedule(created.id, interval(18, 19))).rejects.toBeInstanceOf(
+      ConflictException,
     );
+
+    await expect(
+      reservations.cancel('00000000-0000-4000-8000-000000000000'),
+    ).rejects.toBeInstanceOf(NotFoundException);
 
     const pending = await seedRecitation();
     const cancellable = await reservations.create({
@@ -244,9 +244,7 @@ describe('protected agenda database invariants', () => {
       ...interval(18, 19),
     });
     await reservations.cancel(cancellable.id);
-    await expect(reservations.fulfill(cancellable.id)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(reservations.fulfill(cancellable.id)).rejects.toBeInstanceOf(ConflictException);
     await expect(reservations.cancel(second.recitation.id)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -265,8 +263,8 @@ describe('protected agenda database invariants', () => {
         ...interval(19, 20),
       }),
     ).rejects.toBeTruthy();
-    expect(
-      await prisma.client.reserva.count({ where: { profesionalId: professional.id } }),
-    ).toBe(0);
+    expect(await prisma.client.reserva.count({ where: { profesionalId: professional.id } })).toBe(
+      0,
+    );
   });
 });

@@ -83,34 +83,39 @@ describe('final aptitude and closure database invariants', () => {
   }
 
   it.each([
-    [ResultadoEspecialidad.APTO_PLENO, ResultadoEspecialidad.APTO_PLENO, ResultadoEspecialidad.APTO_PLENO],
+    [
+      ResultadoEspecialidad.APTO_PLENO,
+      ResultadoEspecialidad.APTO_PLENO,
+      ResultadoEspecialidad.APTO_PLENO,
+    ],
     [
       ResultadoEspecialidad.APTO_PLENO,
       ResultadoEspecialidad.APTO_CONDICIONAL,
       ResultadoEspecialidad.APTO_CONDICIONAL,
     ],
-    [ResultadoEspecialidad.NO_APTO, ResultadoEspecialidad.APTO_PLENO, ResultadoEspecialidad.NO_APTO],
-  ])(
-    'stores %s clinical and %s psychological as %s',
-    async (clinical, psychological, expected) => {
-      const registered = await registerJourney(`Matrix ${clinical} ${psychological}`);
-      await completeAll(registered.journey.id, clinical, psychological);
+    [
+      ResultadoEspecialidad.NO_APTO,
+      ResultadoEspecialidad.APTO_PLENO,
+      ResultadoEspecialidad.NO_APTO,
+    ],
+  ])('stores %s clinical and %s psychological as %s', async (clinical, psychological, expected) => {
+    const registered = await registerJourney(`Matrix ${clinical} ${psychological}`);
+    await completeAll(registered.journey.id, clinical, psychological);
 
-      const stored = await storedAptitude(registered.journey.id);
-      expect(stored).toEqual(
-        expect.objectContaining({
-          resultadoClinico: clinical,
-          resultadoPsicologico: psychological,
-          aptitudFinal: expected,
-        }),
-      );
-      expect(
-        await prisma.client.resultadoAptitud.count({
-          where: { recorridoId: registered.journey.id },
-        }),
-      ).toBe(1);
-    },
-  );
+    const stored = await storedAptitude(registered.journey.id);
+    expect(stored).toEqual(
+      expect.objectContaining({
+        resultadoClinico: clinical,
+        resultadoPsicologico: psychological,
+        aptitudFinal: expected,
+      }),
+    );
+    expect(
+      await prisma.client.resultadoAptitud.count({
+        where: { recorridoId: registered.journey.id },
+      }),
+    ).toBe(1);
+  });
 
   it('stores nothing before the third evaluation completes', async () => {
     const registered = await registerJourney('Early Aptitude');
@@ -137,14 +142,8 @@ describe('final aptitude and closure database invariants', () => {
     const registered = await registerJourney('Concurrent Aptitude');
     await completeSpecialty(registered.journey.id, Especialidad.BIOQUIMICA);
 
-    const clinical = await evaluationOf(
-      registered.journey.id,
-      Especialidad.CLINICA_MEDICA,
-    );
-    const psychological = await evaluationOf(
-      registered.journey.id,
-      Especialidad.PSICOLOGIA,
-    );
+    const clinical = await evaluationOf(registered.journey.id, Especialidad.CLINICA_MEDICA);
+    const psychological = await evaluationOf(registered.journey.id, Especialidad.PSICOLOGIA);
     await evaluations.setResult(clinical.id, {
       resultado: ResultadoEspecialidad.APTO_CONDICIONAL,
     });
@@ -213,11 +212,7 @@ describe('final aptitude and closure database invariants', () => {
     );
     await expect(aptitude.close(journeyId)).rejects.toBeInstanceOf(ConflictException);
 
-    await completeSpecialty(
-      journeyId,
-      Especialidad.PSICOLOGIA,
-      ResultadoEspecialidad.NO_APTO,
-    );
+    await completeSpecialty(journeyId, Especialidad.PSICOLOGIA, ResultadoEspecialidad.NO_APTO);
 
     const ready = await aptitude.readiness(journeyId);
     expect(ready).toEqual(
@@ -271,9 +266,7 @@ describe('final aptitude and closure database invariants', () => {
         resultado: ResultadoEspecialidad.APTO_PLENO,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
-    await expect(evaluations.complete(psychological.id)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(evaluations.complete(psychological.id)).rejects.toBeInstanceOf(ConflictException);
 
     const professional = await prisma.client.profesional.create({
       data: { nombre: 'Dr. Closed Journey', especialidad: Especialidad.CLINICA_MEDICA },

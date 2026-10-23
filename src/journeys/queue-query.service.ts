@@ -67,9 +67,7 @@ export class QueueQueryService {
         (evaluation) => evaluation.estado === EvaluacionEstado.PENDIENTE,
       );
       const derivedState =
-        journey.estado === RecorridoEstado.EN_PROCESO &&
-        !activeAttention &&
-        hasPendingEvaluation
+        journey.estado === RecorridoEstado.EN_PROCESO && !activeAttention && hasPendingEvaluation
           ? DerivedJourneyState.waitingForCall
           : null;
 

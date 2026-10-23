@@ -44,9 +44,7 @@ export class AttentionsController {
   private validateStart(body: StartAttentionBody): StartAttentionInput {
     const specialty = typeof body.specialty === 'string' ? body.specialty.trim() : '';
     if (!isSupportedSpecialty(specialty)) {
-      throw new BadRequestException(
-        'specialty must be BIOQUIMICA, CLINICA_MEDICA, or PSICOLOGIA.',
-      );
+      throw new BadRequestException('specialty must be BIOQUIMICA, CLINICA_MEDICA, or PSICOLOGIA.');
     }
     if (typeof body.professionalId !== 'string' || body.professionalId.trim().length === 0) {
       throw new BadRequestException('professionalId is required.');

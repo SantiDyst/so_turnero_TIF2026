@@ -62,10 +62,7 @@ export class EvaluationsController {
 
     let fechaLimite: Date | null = null;
     if (body.fechaLimite !== undefined && body.fechaLimite !== null) {
-      if (
-        typeof body.fechaLimite !== 'string' ||
-        Number.isNaN(Date.parse(body.fechaLimite))
-      ) {
+      if (typeof body.fechaLimite !== 'string' || Number.isNaN(Date.parse(body.fechaLimite))) {
         throw new BadRequestException('fechaLimite must be a valid ISO date.');
       }
       fechaLimite = new Date(body.fechaLimite);
@@ -76,9 +73,7 @@ export class EvaluationsController {
 
   private validateResult(body: SetEvaluationResultBody): SetEvaluationResultInput {
     if (typeof body.resultado !== 'string' || !isSpecialtyResult(body.resultado)) {
-      throw new BadRequestException(
-        'resultado must be APTO_PLENO, APTO_CONDICIONAL, or NO_APTO.',
-      );
+      throw new BadRequestException('resultado must be APTO_PLENO, APTO_CONDICIONAL, or NO_APTO.');
     }
 
     return { resultado: body.resultado };

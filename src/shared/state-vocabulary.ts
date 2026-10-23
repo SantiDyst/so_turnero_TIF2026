@@ -95,10 +95,7 @@ const evaluationStates: Record<
   [EvaluacionEstado.COMPLETA]: EvaluationState.complete,
 };
 
-const informeStates: Record<
-  InformeEstado,
-  (typeof InformeState)[keyof typeof InformeState]
-> = {
+const informeStates: Record<InformeEstado, (typeof InformeState)[keyof typeof InformeState]> = {
   [InformeEstado.PENDIENTE]: InformeState.pending,
   [InformeEstado.COMPLETO]: InformeState.complete,
 };

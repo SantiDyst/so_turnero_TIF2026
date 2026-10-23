@@ -1,8 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-export const AGENDA_OVERLAP_MESSAGE =
-  'The professional already has a reservation for that slot.';
+export const AGENDA_OVERLAP_MESSAGE = 'The professional already has a reservation for that slot.';
 
 export async function assertAgendaSlotFree(
   transaction: Prisma.TransactionClient,
