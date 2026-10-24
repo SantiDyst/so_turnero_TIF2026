@@ -41,10 +41,16 @@ export class JourneysController {
   @Roles(RolUsuario.ADMIN, RolUsuario.PROFESIONAL)
   @ApiOperation({ summary: 'List journeys waiting for attention' })
   listQueue(@CurrentUser() user: AuthenticatedUser) {
-    const specialty =
-      user.rol === RolUsuario.PROFESIONAL ? requireProfessional(user).specialty : undefined;
+    if (user.rol === RolUsuario.PROFESIONAL) {
+      const professional = requireProfessional(user);
 
-    return this.queueQueryService.listQueue(specialty);
+      return this.queueQueryService.listQueue({
+        professionalId: professional.id,
+        specialty: professional.specialty,
+      });
+    }
+
+    return this.queueQueryService.listQueue();
   }
 
   @Get('journeys/overview')

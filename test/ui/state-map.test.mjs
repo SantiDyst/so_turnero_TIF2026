@@ -36,87 +36,92 @@ function withEvaluation(data, specialty, changes) {
   };
 }
 
-test('the first specialty has no sequence blocker', () => {
-  assert.equal(map.sequenceBlocker(journey(), 'BIOQUIMICA'), null);
-});
+function withReport(data, specialty, reportState) {
+  return {
+    ...data,
+    reports: data.reports.map((report) =>
+      report.specialty === specialty ? { ...report, reportState } : report,
+    ),
+  };
+}
 
-test('clinical is blocked until biochemistry is complete', () => {
-  assert.equal(map.sequenceBlocker(journey(), 'CLINICA_MEDICA'), 'Primero completá Bioquímica.');
+function attention(specialty, state, id = 'attention-1') {
+  return {
+    id,
+    specialty,
+    state,
+    startedAt: '2026-10-23T10:00:00.000Z',
+    professional: { id: 'pro-1', name: 'Dra. Bio' },
+  };
+}
 
-  const ready = withEvaluation(journey(), 'BIOQUIMICA', { state: 'COMPLETA' });
-  assert.equal(map.sequenceBlocker(ready, 'CLINICA_MEDICA'), null);
-});
-
-test('psychology is blocked until clinical is complete', () => {
-  const bioDone = withEvaluation(journey(), 'BIOQUIMICA', { state: 'COMPLETA' });
-  assert.equal(map.sequenceBlocker(bioDone, 'PSICOLOGIA'), 'Primero completá Clínica Médica.');
-
-  const clinicalDone = withEvaluation(bioDone, 'CLINICA_MEDICA', { state: 'COMPLETA' });
-  assert.equal(map.sequenceBlocker(clinicalDone, 'PSICOLOGIA'), null);
+test('any specialty can start when there is no active attention', () => {
+  assert.equal(map.canStart(journey(), 'BIOQUIMICA'), true);
+  assert.equal(map.canStart(journey(), 'CLINICA_MEDICA'), true);
+  assert.equal(map.canStart(journey(), 'PSICOLOGIA'), true);
 });
 
 test('a start is withheld on a complete evaluation or an active attention', () => {
-  assert.equal(map.canStart(journey(), 'BIOQUIMICA'), true);
-
   const complete = withEvaluation(journey(), 'BIOQUIMICA', { state: 'COMPLETA' });
   assert.equal(map.canStart(complete, 'BIOQUIMICA'), false);
 
-  const active = journey({
-    attentions: [
-      {
-        id: 'attention-1',
-        specialty: 'BIOQUIMICA',
-        state: 'En atención',
-        professional: { id: 'pro-1', name: 'Dra. Bio' },
-      },
-    ],
-  });
+  const active = journey({ attentions: [attention('BIOQUIMICA', 'En atención')] });
   assert.equal(map.canStart(active, 'BIOQUIMICA'), false);
 });
 
-test('finalizing asks for confirmation while the report or the result is missing', () => {
-  assert.equal(map.needsFinalizeConfirmation(journey(), 'CLINICA_MEDICA'), true);
-
-  const complete = journey({
-    reports: journey().reports.map((report) =>
-      report.specialty === 'CLINICA_MEDICA' ? { ...report, reportState: 'Completo' } : report,
-    ),
-  });
-  const withResult = withEvaluation(complete, 'CLINICA_MEDICA', { result: 'APTO_PLENO' });
-
-  assert.equal(map.needsFinalizeConfirmation(withResult, 'CLINICA_MEDICA'), false);
+test('a finalized attention cannot be started again', () => {
+  const finalized = journey({ attentions: [attention('BIOQUIMICA', 'Finalizada')] });
+  assert.equal(map.canStart(finalized, 'BIOQUIMICA'), false);
 });
 
-test('biochemistry can complete without a result but clinical cannot', () => {
-  assert.equal(map.canComplete(journey(), 'BIOQUIMICA'), true);
-  assert.equal(map.canComplete(journey(), 'CLINICA_MEDICA'), false);
+test('a waiting follow-up attention can be adopted', () => {
+  const withFollowUp = journey({
+    attentions: [
+      attention('BIOQUIMICA', 'Finalizada', 'attention-1'),
+      attention('BIOQUIMICA', 'En espera', 'attention-2'),
+    ],
+  });
+  assert.equal(map.canStart(withFollowUp, 'BIOQUIMICA'), true);
+});
 
-  const withResult = withEvaluation(journey(), 'CLINICA_MEDICA', { result: 'APTO_CONDICIONAL' });
+test('completion requires a complete report and the specialty result', () => {
+  assert.equal(map.canComplete(journey(), 'BIOQUIMICA'), false);
+
+  const bioReported = withReport(journey(), 'BIOQUIMICA', 'Completo');
+  assert.equal(map.canComplete(bioReported, 'BIOQUIMICA'), true);
+
+  const clinicalReported = withReport(journey(), 'CLINICA_MEDICA', 'Completo');
+  assert.equal(map.canComplete(clinicalReported, 'CLINICA_MEDICA'), false);
+
+  const withResult = withEvaluation(clinicalReported, 'CLINICA_MEDICA', {
+    result: 'APTO_CONDICIONAL',
+  });
   assert.equal(map.canComplete(withResult, 'CLINICA_MEDICA'), true);
 });
 
 test('open pendings block completion', () => {
-  const withPending = journey({
-    pendings: [{ id: 'pending-1', evaluationId: 'eval-bio', resolvedAt: null }],
-  });
+  const withPending = withReport(journey(), 'BIOQUIMICA', 'Completo');
+  withPending.pendings = [{ id: 'pending-1', evaluationId: 'eval-bio', resolvedAt: null }];
 
   assert.equal(map.canComplete(withPending, 'BIOQUIMICA'), false);
 });
 
-test('reports need a started attention and a closed journey disables starts', () => {
+test('finalizing follows the evaluation state', () => {
+  assert.deepEqual(map.finalizeOptions(journey(), 'BIOQUIMICA'), []);
+
+  const complete = withEvaluation(journey(), 'BIOQUIMICA', { state: 'COMPLETA' });
+  assert.deepEqual(map.finalizeOptions(complete, 'BIOQUIMICA'), ['Finalizada']);
+
+  const withPending = journey({
+    pendings: [{ id: 'pending-1', evaluationId: 'eval-bio', resolvedAt: null }],
+  });
+  assert.deepEqual(map.finalizeOptions(withPending, 'BIOQUIMICA'), ['Pendiente']);
+});
+
+test('reports need a started attention and a closed journey disables saves', () => {
   assert.equal(map.canSaveReport(journey(), 'BIOQUIMICA'), false);
 
-  const attended = journey({
-    attentions: [
-      {
-        id: 'attention-1',
-        specialty: 'BIOQUIMICA',
-        state: 'Finalizada',
-        startedAt: '2026-10-23T10:00:00.000Z',
-        professional: { id: 'pro-1', name: 'Dra. Bio' },
-      },
-    ],
-  });
+  const attended = journey({ attentions: [attention('BIOQUIMICA', 'Finalizada')] });
   assert.equal(map.canSaveReport(attended, 'BIOQUIMICA'), true);
 
   const closed = journey({
@@ -124,6 +129,7 @@ test('reports need a started attention and a closed journey disables starts', ()
   });
   assert.equal(map.isClosed(closed), true);
   assert.equal(map.canStart(closed, 'BIOQUIMICA'), false);
+  assert.equal(map.canSaveReport(closed, 'BIOQUIMICA'), false);
 });
 
 test('annulled journeys reject starts and expose the reason', () => {
@@ -132,7 +138,7 @@ test('annulled journeys reject starts and expose the reason', () => {
       id: 'journey-1',
       attentionNumber: 'AT-0001',
       state: 'Anulada',
-      annulledReason: 'Desisti�',
+      annulledReason: 'Desistió',
     },
   });
 
@@ -154,16 +160,7 @@ test('management actions depend on state and recorded attentions', () => {
 test('results require a started attention for the specialty', () => {
   assert.equal(map.hasAttentionFor(journey(), 'CLINICA_MEDICA'), false);
 
-  const attended = journey({
-    attentions: [
-      {
-        id: 'attention-1',
-        specialty: 'CLINICA_MEDICA',
-        state: 'En atenci�n',
-        professional: { id: 'pro-1', name: 'Dr. Clinical' },
-      },
-    ],
-  });
+  const attended = journey({ attentions: [attention('CLINICA_MEDICA', 'En atención')] });
 
   assert.equal(map.hasAttentionFor(attended, 'CLINICA_MEDICA'), true);
   assert.equal(map.hasAttentionFor(attended, 'PSICOLOGIA'), false);

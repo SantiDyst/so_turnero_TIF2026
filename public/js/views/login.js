@@ -2,6 +2,20 @@ import { api } from '../api-client.js';
 import { button, el, field, input } from '../dom.js';
 import { homePathFor } from '../routes-map.js';
 
+function brandPanel() {
+  return el('aside', { class: 'auth-brand' }, [
+    el('img', {
+      class: 'auth-logo',
+      src: '/assets/logo.png',
+      alt: 'Sistema de Salud Ocupacional',
+    }),
+    el('h1', { text: 'Sistema de Salud Ocupacional' }),
+    el('p', {
+      text: 'Turnos, evaluaciones y certificados del preocupacional, en un solo lugar.',
+    }),
+  ]);
+}
+
 export function renderLogin(container, ctx) {
   const status = el('p', { class: 'notice', hidden: true });
   const submit = el('button', { type: 'submit', class: 'primary', text: 'Ingresar' });
@@ -63,5 +77,5 @@ export function renderLogin(container, ctx) {
     }
   });
 
-  container.append(form);
+  container.append(el('section', { class: 'auth-shell' }, [brandPanel(), form]));
 }

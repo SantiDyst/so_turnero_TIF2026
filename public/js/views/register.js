@@ -1,6 +1,20 @@
 import { api } from '../api-client.js';
 import { el, field, input } from '../dom.js';
 
+function brandPanel() {
+  return el('aside', { class: 'auth-brand' }, [
+    el('img', {
+      class: 'auth-logo',
+      src: '/assets/logo.png',
+      alt: 'Sistema de Salud Ocupacional',
+    }),
+    el('h1', { text: 'Pedí tu turno' }),
+    el('p', {
+      text: 'Creá tu cuenta y tu turno de preocupacional en un mismo paso. Después seguí el estado desde tu recorrido.',
+    }),
+  ]);
+}
+
 export function renderRegister(container, ctx) {
   const status = el('p', { class: 'notice', hidden: true });
   const submit = el('button', { type: 'submit', class: 'primary', text: 'Pedir turno' });
@@ -72,5 +86,5 @@ export function renderRegister(container, ctx) {
     }
   });
 
-  container.append(form);
+  container.append(el('section', { class: 'auth-shell' }, [brandPanel(), form]));
 }

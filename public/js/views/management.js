@@ -43,7 +43,7 @@ export async function renderManagement(container, ctx) {
     }),
     chips,
     status,
-    el('div', { class: 'list-panel' }, [list]),
+    el('div', { class: 'list-panel scroll-list' }, [list]),
   ]);
 
   function setStatus(text, kind = 'info') {

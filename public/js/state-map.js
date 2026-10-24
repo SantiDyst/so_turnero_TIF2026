@@ -34,6 +34,7 @@ export const JOURNEY_STATE_CLASS = {
 };
 
 export const ATTENTION_IN_PROGRESS = 'En atención';
+export const ATTENTION_WAITING = 'En espera';
 export const EVALUATION_PENDING = 'PENDIENTE';
 export const EVALUATION_COMPLETE = 'COMPLETA';
 export const JOURNEY_CLOSED = 'Cierre final';
@@ -88,36 +89,23 @@ export function isClosed(journey) {
   return journey.journey.state === JOURNEY_CLOSED || journey.journey.state === JOURNEY_ANNULLED;
 }
 
-export function previousSpecialty(specialty) {
-  const index = SPECIALTIES.indexOf(specialty);
-
-  return index > 0 ? SPECIALTIES[index - 1] : null;
-}
-
-export function sequenceBlocker(journey, specialty) {
-  const previous = previousSpecialty(specialty);
-
-  if (!previous) {
-    return null;
-  }
-
-  const evaluation = evaluationOf(journey, previous);
-
-  if (!evaluation || evaluation.state === EVALUATION_COMPLETE) {
-    return null;
-  }
-
-  return `Primero completá ${specialtyLabel(previous)}.`;
-}
-
 export function canStart(journey, specialty) {
   const evaluation = evaluationOf(journey, specialty);
 
-  if (!evaluation || isClosed(journey)) {
+  if (!evaluation || evaluation.state === EVALUATION_COMPLETE || isClosed(journey)) {
+    return false;
+  }
+  if (activeAttentionOf(journey, specialty)) {
     return false;
   }
 
-  return evaluation.state !== EVALUATION_COMPLETE && !activeAttentionOf(journey, specialty);
+  const attentions = journey.attentions.filter((attention) => attention.specialty === specialty);
+
+  if (attentions.length === 0) {
+    return true;
+  }
+
+  return attentions.some((attention) => attention.state === ATTENTION_WAITING);
 }
 
 export function canRecordResult(specialty) {
@@ -135,6 +123,10 @@ export function canComplete(journey, specialty) {
     return false;
   }
 
+  if (reportOf(journey, specialty)?.reportState !== REPORT_COMPLETE) {
+    return false;
+  }
+
   return specialty === 'BIOQUIMICA' || Boolean(evaluation.result);
 }
 
@@ -146,13 +138,20 @@ export function canSaveReport(journey, specialty) {
   return !isClosed(journey) && Boolean(latestAttentionOf(journey, specialty));
 }
 
-export function needsFinalizeConfirmation(journey, specialty) {
+export function finalizeOptions(journey, specialty) {
   const evaluation = evaluationOf(journey, specialty);
-  const report = reportOf(journey, specialty);
-  const missingReport = !report || report.reportState !== REPORT_COMPLETE;
-  const missingResult = canRecordResult(specialty) && !evaluation?.result;
 
-  return missingReport || Boolean(missingResult);
+  if (!evaluation || isClosed(journey)) {
+    return [];
+  }
+  if (evaluation.state === EVALUATION_COMPLETE) {
+    return ['Finalizada'];
+  }
+  if (openPendingsOf(journey, evaluation.id).length > 0) {
+    return ['Pendiente'];
+  }
+
+  return [];
 }
 
 export function entryCanAnnul(entry) {

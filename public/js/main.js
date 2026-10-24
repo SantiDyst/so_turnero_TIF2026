@@ -27,6 +27,7 @@ const ROUTE_ROLES = {
 };
 
 const PUBLIC_ROUTES = new Set(['login', 'register', 'public-certificate']);
+const AUTH_ROUTES = new Set(['login', 'register']);
 
 let user = null;
 
@@ -66,23 +67,15 @@ function navLink(label, path) {
 function paintChrome() {
   const nodes = [];
 
-  if (user?.rol === 'ADMIN') {
-    nodes.push(
-      navLink('Turnos', '#/turnos'),
-      navLink('Gestión', '#/gestion'),
-      navLink('Usuarios', '#/usuarios'),
-    );
-  } else if (user?.rol === 'PROFESIONAL') {
-    nodes.push(navLink('Mi jornada', '#/evaluar'));
-  } else if (user?.rol === 'USER') {
-    nodes.push(navLink('Mi recorrido', '#/portal'));
-  }
-
   if (user) {
     nodes.push(
+      navLink('Inicio', '#/'),
       el('span', { class: 'account' }, [
         el('span', { class: 'account-name', text: user.nombre }),
-        el('span', { class: 'role-badge', text: roleLabel(user.rol) }),
+        el('span', {
+          class: `role-badge role-${String(user.rol).toLowerCase()}`,
+          text: roleLabel(user.rol),
+        }),
       ]),
       el('button', {
         type: 'button',
@@ -91,8 +84,6 @@ function paintChrome() {
         onClick: () => void ctx.signOut(),
       }),
     );
-  } else {
-    nodes.push(navLink('Ingresar', '#/login'), navLink('Pedir turno', '#/registro'));
   }
 
   topnav.replaceChildren(...nodes);
@@ -113,6 +104,8 @@ async function render() {
   clear(app);
 
   const route = readRoute();
+
+  app.className = AUTH_ROUTES.has(route.name) ? 'app app-auth' : 'app';
 
   if (!PUBLIC_ROUTES.has(route.name)) {
     if (!user) {

@@ -8,6 +8,7 @@ export interface ReportFieldDefinition {
   type: ReportFieldType;
   unit?: string;
   options?: string[];
+  help?: string;
   min?: number;
   max?: number;
 }
@@ -21,7 +22,13 @@ export const REPORT_FIELDS: Record<Especialidad, ReportFieldDefinition[]> = {
   CLINICA_MEDICA: [
     { key: 'pesoKg', label: 'Peso', type: 'number', unit: 'kg', min: 20, max: 300 },
     { key: 'tallaCm', label: 'Talla', type: 'number', unit: 'cm', min: 90, max: 250 },
-    { key: 'presionArterial', label: 'Presión arterial', type: 'text', unit: 'mmHg' },
+    {
+      key: 'presionArterial',
+      label: 'Presión arterial',
+      type: 'text',
+      unit: 'mmHg',
+      help: 'Se escribe sistólica/diastólica, por ejemplo 120/80.',
+    },
     { key: 'frecuenciaCardiaca', label: 'Frecuencia cardíaca', type: 'number', unit: 'lpm' },
     {
       key: 'frecuenciaRespiratoria',
@@ -36,21 +43,50 @@ export const REPORT_FIELDS: Record<Especialidad, ReportFieldDefinition[]> = {
     { key: 'antecedentes', label: 'Antecedentes personales', type: 'textarea' },
   ],
   BIOQUIMICA: [
-    { key: 'hemoglobina', label: 'Hemoglobina', type: 'number', unit: 'g/dL' },
-    { key: 'hematocrito', label: 'Hematocrito', type: 'number', unit: '%' },
+    {
+      key: 'hemoglobina',
+      label: 'Hemoglobina',
+      type: 'number',
+      unit: 'g/dL',
+      help: 'Proteína de los glóbulos rojos que transporta oxígeno.',
+    },
+    {
+      key: 'hematocrito',
+      label: 'Hematocrito',
+      type: 'number',
+      unit: '%',
+      help: 'Porcentaje del volumen de sangre ocupado por glóbulos rojos.',
+    },
     { key: 'glucemia', label: 'Glucemia', type: 'number', unit: 'mg/dL' },
     { key: 'colesterolTotal', label: 'Colesterol total', type: 'number', unit: 'mg/dL' },
     { key: 'trigliceridos', label: 'Triglicéridos', type: 'number', unit: 'mg/dL' },
     { key: 'urea', label: 'Urea', type: 'number', unit: 'mg/dL' },
     { key: 'creatinina', label: 'Creatinina', type: 'number', unit: 'mg/dL' },
-    { key: 'got', label: 'GOT (AST)', type: 'number', unit: 'U/L' },
-    { key: 'gpt', label: 'GPT (ALT)', type: 'number', unit: 'U/L' },
+    {
+      key: 'got',
+      label: 'GOT (AST)',
+      type: 'number',
+      unit: 'U/L',
+      help: 'Enzima hepática: transaminasa glutámico oxalacética.',
+    },
+    {
+      key: 'gpt',
+      label: 'GPT (ALT)',
+      type: 'number',
+      unit: 'U/L',
+      help: 'Enzima hepática: transaminasa glutámico pirúvica.',
+    },
     { key: 'orinaCompleta', label: 'Orina completa', type: 'text' },
     { key: 'otrosEstudios', label: 'Otros estudios', type: 'textarea' },
   ],
   PSICOLOGIA: [
     { key: 'entrevista', label: 'Entrevista', type: 'textarea' },
-    { key: 'instrumentos', label: 'Instrumentos administrados', type: 'textarea' },
+    {
+      key: 'instrumentos',
+      label: 'Instrumentos administrados',
+      type: 'textarea',
+      help: 'Pruebas psicológicas aplicadas, por ejemplo 16PF o Raven.',
+    },
     { key: 'hallazgos', label: 'Hallazgos', type: 'textarea' },
     {
       key: 'ansiedad',

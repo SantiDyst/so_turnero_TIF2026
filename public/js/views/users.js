@@ -191,7 +191,10 @@ export async function renderUsers(container, ctx) {
           }),
         ]),
         el('div', { class: 'row' }, [
-          el('span', { class: 'badge', text: roleLabel(user.rol) }),
+          el('span', {
+            class: `role-badge role-${String(user.rol).toLowerCase()}`,
+            text: roleLabel(user.rol),
+          }),
           el('span', {
             class: user.activo ? 'badge ok' : 'badge bad',
             text: user.activo ? 'Activo' : 'Inactivo',
@@ -280,7 +283,7 @@ export async function renderUsers(container, ctx) {
         class: 'hint',
         text: 'La baja es lógica: corta las sesiones abiertas y conserva el historial clínico.',
       }),
-      el('div', { class: 'list-panel' }, [list]),
+      el('div', { class: 'list-panel scroll-list' }, [list]),
     ]),
   );
 

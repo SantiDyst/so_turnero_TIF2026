@@ -1,5 +1,5 @@
 import { api } from '../api-client.js';
-import { button, el, select } from '../dom.js';
+import { button, el } from '../dom.js';
 import { formatDate } from '../format.js';
 import * as map from '../state-map.js';
 import { renderClosurePanel } from './closure.js';
@@ -23,8 +23,8 @@ function notice(noticeState) {
 export async function renderJourney(container, attentionNumber, ctx) {
   let journey;
   let readiness;
-  let confirmFinalize = null;
   const notices = new Map();
+  const editingReports = new Set();
 
   const isAdmin = ctx.user?.rol === 'ADMIN';
   const isProfessional = ctx.user?.rol === 'PROFESIONAL';
@@ -36,11 +36,11 @@ export async function renderJourney(container, attentionNumber, ctx) {
 
   async function mutate(key, pendingText, action, successText) {
     notices.set(key, { text: pendingText, kind: 'info' });
-    confirmFinalize = null;
     render();
 
     try {
       await action();
+      editingReports.delete(key);
       notices.set(key, { text: successText, kind: 'ok' });
     } catch (error) {
       notices.set(key, { text: error?.message ?? 'Error inesperado', kind: 'error' });
@@ -113,83 +113,67 @@ export async function renderJourney(container, attentionNumber, ctx) {
     ]);
   }
 
-  function finalizeRow(specialty, active) {
-    const owned = active.professional?.id === ctx.user?.profesionalId;
+  function finalizeBlock(specialty, active) {
+    const options = map.finalizeOptions(journey, specialty);
 
-    if (!owned) {
-      return el('p', {
-        class: 'hint',
-        text: `Atención activa de ${active.professional?.name ?? 'otro profesional'}.`,
-      });
-    }
-
-    if (confirmFinalize === specialty) {
-      return el('div', { class: 'notice' }, [
+    if (options.includes('Pendiente')) {
+      return el('div', {}, [
         el('p', {
-          text: '¿Finalizar la atención sin cargar el informe y el resultado?',
-          style: 'margin:0 0 8px',
+          class: 'hint',
+          text: 'Hay pendientes abiertos: al finalizar, la atención queda a la espera del recontrol.',
         }),
         el('div', { class: 'row' }, [
           button(
-            'Sí, finalizar',
+            'Finalizar como Pendiente',
             () =>
               mutate(
                 specialty,
                 'Finalizando atención…',
-                () => api.finalizeAttention(active.id, 'Finalizada'),
-                'Atención finalizada.',
+                () => api.finalizeAttention(active.id, 'Pendiente'),
+                'Atención finalizada como Pendiente.',
               ),
-            { class: 'primary' },
+            { class: 'blue' },
           ),
-          button('Cancelar', () => {
-            confirmFinalize = null;
-            render();
-          }),
         ]),
       ]);
     }
 
-    const stateSelect = select(
-      'finalizeState',
-      [
-        ['Finalizada', 'Finalizada'],
-        ['Pendiente', 'Pendiente'],
-      ],
-      'Finalizada',
-    );
+    if (options.includes('Finalizada')) {
+      return el('div', { class: 'row' }, [
+        button(
+          'Finalizar atención',
+          () =>
+            mutate(
+              specialty,
+              'Finalizando atención…',
+              () => api.finalizeAttention(active.id, 'Finalizada'),
+              'Atención finalizada.',
+            ),
+          { class: 'primary' },
+        ),
+      ]);
+    }
 
-    return el('div', { class: 'row' }, [
-      stateSelect,
-      button(
-        'Finalizar atención',
-        () => {
-          if (
-            stateSelect.value === 'Finalizada' &&
-            map.needsFinalizeConfirmation(journey, specialty)
-          ) {
-            confirmFinalize = specialty;
-            render();
-            return;
-          }
-
-          mutate(
-            specialty,
-            'Finalizando atención…',
-            () => api.finalizeAttention(active.id, stateSelect.value),
-            'Atención finalizada.',
-          );
-        },
-        { class: 'blue' },
-      ),
-    ]);
+    return el('p', {
+      class: 'hint',
+      text: 'Completá la evaluación para poder finalizar la atención.',
+    });
   }
 
   function resultRow(specialty, evaluation) {
-    const resultSelect = select(
-      'result',
-      [['', 'Sin resultado'], ...map.RESULT_CODES.map((code) => [code, map.resultLabel(code)])],
-      evaluation.result ?? '',
-    );
+    const resultSelect = el('select', { name: 'result' });
+
+    for (const [value, label] of [
+      ['', 'Sin resultado'],
+      ...map.RESULT_CODES.map((code) => [code, map.resultLabel(code)]),
+    ]) {
+      const option = el('option', { value, text: label });
+
+      if (value === (evaluation.result ?? '')) {
+        option.selected = true;
+      }
+      resultSelect.append(option);
+    }
 
     return el('div', { class: 'row' }, [
       resultSelect,
@@ -214,7 +198,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
     ]);
   }
 
-  function completionRow(specialty, evaluation) {
+  function completionBlock(specialty, evaluation) {
     if (map.canComplete(journey, specialty)) {
       return el('div', { class: 'row' }, [
         button(
@@ -231,14 +215,20 @@ export async function renderJourney(container, attentionNumber, ctx) {
       ]);
     }
 
-    if (evaluation.state === map.EVALUATION_COMPLETE) {
+    if (evaluation.state === map.EVALUATION_COMPLETE || !map.hasAttentionFor(journey, specialty)) {
       return null;
     }
 
     if (map.openPendingsOf(journey, evaluation.id).length > 0) {
+      return el('p', { class: 'hint', text: 'Resolvé los pendientes abiertos para completar.' });
+    }
+
+    const report = map.reportOf(journey, specialty);
+
+    if (report?.reportState !== map.REPORT_COMPLETE) {
       return el('p', {
         class: 'hint',
-        text: 'Hay pendientes abiertos: no se puede completar.',
+        text: 'Guardá el informe como Completo para poder completar la evaluación.',
       });
     }
 
@@ -254,8 +244,9 @@ export async function renderJourney(container, attentionNumber, ctx) {
     const active = map.activeAttentionOf(journey, specialty);
     const latest = map.latestAttentionOf(journey, specialty);
     const report = map.reportOf(journey, specialty);
-    const blocker = map.sequenceBlocker(journey, specialty);
-    const canAct = canWorkOn(specialty);
+    const ownsLatest = !latest || latest.professional?.id === ctx.user?.profesionalId;
+    const canAct = canWorkOn(specialty) && ownsLatest;
+    const ownsActive = active ? active.professional?.id === ctx.user?.profesionalId : true;
 
     const badgeClass =
       evaluation?.state === map.EVALUATION_COMPLETE
@@ -271,13 +262,9 @@ export async function renderJourney(container, attentionNumber, ctx) {
       ]),
     ];
 
-    if (blocker) {
-      nodes.push(el('p', { class: 'notice', text: blocker }));
-    } else {
-      const cardNotice = notice(notices.get(specialty));
-      if (cardNotice) {
-        nodes.push(cardNotice);
-      }
+    const cardNotice = notice(notices.get(specialty));
+    if (cardNotice) {
+      nodes.push(cardNotice);
     }
 
     nodes.push(
@@ -295,36 +282,48 @@ export async function renderJourney(container, attentionNumber, ctx) {
       ]),
     );
 
-    if (canAct && !blocker) {
-      if (active) {
-        nodes.push(finalizeRow(specialty, active));
+    if (canAct) {
+      if (active && !ownsActive) {
+        nodes.push(
+          el('p', {
+            class: 'hint',
+            text: `Atención activa de ${active.professional?.name ?? 'otro profesional'}.`,
+          }),
+        );
+      } else if (active) {
+        if (
+          evaluation &&
+          map.canRecordResult(specialty) &&
+          evaluation.state !== map.EVALUATION_COMPLETE
+        ) {
+          nodes.push(resultRow(specialty, evaluation));
+        }
+        nodes.push(completionBlock(specialty, evaluation));
+        nodes.push(finalizeBlock(specialty, active));
       } else if (map.canStart(journey, specialty)) {
         nodes.push(startRow(specialty));
-      } else if (map.isClosed(journey)) {
-        nodes.push(el('p', { class: 'hint', text: 'Recorrido cerrado.' }));
+      } else if (evaluation && evaluation.state !== map.EVALUATION_COMPLETE) {
+        if (map.canRecordResult(specialty) && !evaluation.result) {
+          nodes.push(resultRow(specialty, evaluation));
+        }
+        nodes.push(completionBlock(specialty, evaluation));
       }
-    }
-
-    if (
-      canAct &&
-      !blocker &&
-      evaluation &&
-      map.hasAttentionFor(journey, specialty) &&
-      map.canRecordResult(specialty) &&
-      evaluation.state !== map.EVALUATION_COMPLETE
-    ) {
-      nodes.push(resultRow(specialty, evaluation));
-    }
-
-    if (canAct && !blocker && evaluation && map.hasAttentionFor(journey, specialty)) {
-      nodes.push(completionRow(specialty, evaluation));
     }
 
     nodes.push(
       renderReportSection({
         journey,
         specialty,
-        locked: Boolean(blocker) || !canAct,
+        editable: canAct,
+        editing: canAct && (editingReports.has(specialty) || !report?.reportId),
+        onEdit: () => {
+          editingReports.add(specialty);
+          render();
+        },
+        onCancel: () => {
+          editingReports.delete(specialty);
+          render();
+        },
         onAction: (pendingText, action, successText) =>
           mutate(specialty, pendingText, action, successText),
         onError: (message) => {

@@ -19,6 +19,7 @@ function fieldControl(field, value, disabled) {
       name: field.key,
       rows: 2,
       placeholder: field.label,
+      title: field.help,
       disabled,
     });
     control.value = value ?? '';
@@ -31,6 +32,7 @@ function fieldControl(field, value, disabled) {
     type: field.type === 'number' ? 'number' : 'text',
     step: 'any',
     placeholder: field.label,
+    title: field.help,
     disabled,
   });
   control.value = value ?? '';
@@ -38,7 +40,7 @@ function fieldControl(field, value, disabled) {
   return control;
 }
 
-function dataSection(fields, data, editable) {
+function dataSection(fields, data) {
   if (fields.length === 0) {
     return null;
   }
@@ -49,7 +51,8 @@ function dataSection(fields, data, editable) {
     grid.append(
       el('label', { class: 'field' }, [
         el('span', { text: field.unit ? `${field.label} (${field.unit})` : field.label }),
-        fieldControl(field, data?.[field.key], !editable),
+        fieldControl(field, data?.[field.key], false),
+        field.help ? el('small', { class: 'field-help', text: field.help }) : null,
       ]),
     );
   }
@@ -79,16 +82,86 @@ function readData(fields, root) {
   return data;
 }
 
-export function renderReportSection({ journey, specialty, locked = false, onAction, onError }) {
+function readOnlyView(fields, data, observations) {
+  const nodes = [];
+  const filled = (fields ?? []).filter(
+    (field) =>
+      data?.[field.key] !== undefined && data?.[field.key] !== null && data?.[field.key] !== '',
+  );
+
+  if (filled.length > 0) {
+    nodes.push(el('h4', { text: 'Datos del informe' }));
+    nodes.push(
+      el(
+        'dl',
+        { class: 'report-view' },
+        filled.map((field) =>
+          el('div', {}, [
+            el('dt', { text: field.label }),
+            el('dd', {
+              text: `${data[field.key]}${field.unit ? ` ${field.unit}` : ''}`,
+            }),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  nodes.push(el('h4', { text: 'Conclusión / recomendación' }));
+  nodes.push(
+    el('p', {
+      class: observations ? 'report-conclusion' : 'hint',
+      text: observations || 'Sin conclusión registrada.',
+    }),
+  );
+
+  return nodes;
+}
+
+export function renderReportSection({
+  journey,
+  specialty,
+  editable = false,
+  editing = false,
+  onEdit,
+  onCancel,
+  onAction,
+  onError,
+}) {
   const report = map.reportOf(journey, specialty);
   const attention = map.latestAttentionOf(journey, specialty);
   const fields = report?.fields ?? [];
-  const editable = !locked && map.canSaveReport(journey, specialty);
+  const canEdit = editable && map.canSaveReport(journey, specialty);
+
+  const header = el('div', { class: 'card-head' }, [
+    el('h3', { text: 'Informe' }),
+    el('span', {
+      class: report?.reportState === 'Completo' ? 'badge active' : 'badge',
+      text: report?.reportState ?? 'Pendiente',
+    }),
+  ]);
+
+  if (!canEdit || !editing) {
+    const nodes = [header, ...readOnlyView(fields, report?.data, report?.observations)];
+
+    if (canEdit) {
+      nodes.push(
+        el('div', { class: 'row', style: 'margin-top:10px' }, [
+          button('Editar informe', onEdit, { class: 'blue' }),
+        ]),
+      );
+    } else if (!attention) {
+      nodes.push(
+        el('p', { class: 'hint', text: 'Requiere una atención iniciada para esta especialidad.' }),
+      );
+    }
+
+    return el('div', {}, nodes);
+  }
 
   const observations = el('textarea', {
     rows: 3,
     placeholder: 'Conclusión y recomendaciones',
-    disabled: !editable,
   });
   observations.value = report?.observations ?? '';
 
@@ -100,15 +173,12 @@ export function renderReportSection({ journey, specialty, locked = false, onActi
     ],
     report?.reportState ?? 'Pendiente',
   );
-  stateSelect.disabled = !editable;
 
   const body = el('div', {}, [
-    dataSection(fields, report?.data, editable),
-    el('div', { class: 'grid' }, [
-      el('label', { class: 'field' }, [
-        el('span', { text: 'Conclusión / recomendación' }),
-        observations,
-      ]),
+    dataSection(fields, report?.data),
+    el('label', { class: 'field' }, [
+      el('span', { text: 'Conclusión / recomendación' }),
+      observations,
     ]),
   ]);
 
@@ -133,21 +203,16 @@ export function renderReportSection({ journey, specialty, locked = false, onActi
         'Informe guardado.',
       );
     },
-    { class: 'blue', disabled: !editable },
+    { class: 'primary' },
   );
 
   return el('div', {}, [
-    el('div', { class: 'card-head' }, [
-      el('h3', { text: 'Informe' }),
-      el('span', {
-        class: report?.reportState === 'Completo' ? 'badge active' : 'badge',
-        text: report?.reportState ?? 'Pendiente',
-      }),
-    ]),
+    header,
     body,
-    el('div', { class: 'row', style: 'margin-top:10px' }, [stateSelect, save]),
-    !locked && !attention
-      ? el('p', { class: 'hint', text: 'Requiere una atención iniciada para esta especialidad.' })
-      : null,
+    el('div', { class: 'row', style: 'margin-top:10px' }, [
+      stateSelect,
+      save,
+      report?.reportId ? button('Cancelar edición', onCancel) : null,
+    ]),
   ]);
 }

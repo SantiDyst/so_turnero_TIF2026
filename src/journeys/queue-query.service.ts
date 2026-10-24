@@ -28,26 +28,14 @@ export interface ProfessionalViewer {
 export class QueueQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listQueue(specialty?: Especialidad) {
-    if (specialty) {
-      const journeys = await this.prisma.client.recorrido.findMany({
-        where: {
-          estado: { in: [RecorridoEstado.EN_ESPERA, RecorridoEstado.EN_PROCESO] },
-          evaluaciones: { some: { especialidad: specialty, estado: EvaluacionEstado.PENDIENTE } },
-        },
-        orderBy: { queuedAt: 'asc' },
-        select: {
-          postulanteId: true,
-          numeroAtencion: true,
-          estado: true,
-          queuedAt: true,
-          empresa: true,
-          puesto: true,
-          postulante: { select: { nombre: true, apellido: true } },
-        },
-      });
+  async listQueue(viewer?: ProfessionalViewer) {
+    if (viewer) {
+      const [pending, completed] = await Promise.all([
+        this.professionalPendingQueue(viewer),
+        this.professionalCompletedQueue(viewer),
+      ]);
 
-      return journeys.map((journey) => this.toQueueEntry(journey));
+      return [...pending, ...completed];
     }
 
     const journeys = await this.prisma.client.recorrido.findMany({
@@ -65,6 +53,88 @@ export class QueueQueryService {
     });
 
     return journeys.map((journey) => this.toQueueEntry(journey));
+  }
+
+  private async professionalPendingQueue(viewer: ProfessionalViewer) {
+    const journeys = await this.prisma.client.recorrido.findMany({
+      where: {
+        estado: { in: [RecorridoEstado.EN_ESPERA, RecorridoEstado.EN_PROCESO] },
+        evaluaciones: {
+          some: { especialidad: viewer.specialty, estado: EvaluacionEstado.PENDIENTE },
+        },
+      },
+      orderBy: { queuedAt: 'asc' },
+      select: {
+        postulanteId: true,
+        numeroAtencion: true,
+        estado: true,
+        queuedAt: true,
+        empresa: true,
+        puesto: true,
+        postulante: { select: { nombre: true, apellido: true } },
+        atenciones: {
+          where: { especialidad: viewer.specialty },
+          select: { estado: true },
+        },
+      },
+    });
+
+    return journeys.map((journey) => ({
+      ...this.toQueueEntry(journey),
+      status: journey.atenciones.some(
+        (attention) => attention.estado === AtencionEstado.EN_ATENCION,
+      )
+        ? 'en_atencion'
+        : 'pendiente',
+      completedAt: null,
+    }));
+  }
+
+  private async professionalCompletedQueue(viewer: ProfessionalViewer) {
+    const attentions = await this.prisma.client.atencion.findMany({
+      where: {
+        profesionalId: viewer.professionalId,
+        especialidad: viewer.specialty,
+        estado: AtencionEstado.FINALIZADA,
+        evaluacion: { estado: EvaluacionEstado.COMPLETA },
+        recorrido: { estado: { in: [RecorridoEstado.EN_PROCESO, RecorridoEstado.CIERRE_FINAL] } },
+      },
+      orderBy: { endedAt: 'desc' },
+      take: 20,
+      select: {
+        recorridoId: true,
+        endedAt: true,
+        recorrido: {
+          select: {
+            postulanteId: true,
+            numeroAtencion: true,
+            estado: true,
+            queuedAt: true,
+            empresa: true,
+            puesto: true,
+            postulante: { select: { nombre: true, apellido: true } },
+          },
+        },
+      },
+    });
+
+    const seen = new Set<string>();
+    const entries: Record<string, unknown>[] = [];
+
+    for (const attention of attentions) {
+      if (seen.has(attention.recorridoId)) {
+        continue;
+      }
+      seen.add(attention.recorridoId);
+
+      entries.push({
+        ...this.toQueueEntry(attention.recorrido),
+        status: 'completado',
+        completedAt: attention.endedAt,
+      });
+    }
+
+    return entries;
   }
 
   private toQueueEntry(journey: {
