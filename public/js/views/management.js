@@ -36,14 +36,14 @@ export async function renderManagement(container, ctx) {
   const refresh = button('Actualizar', () => load());
 
   const panel = el('section', { class: 'panel' }, [
-    el('div', { class: 'card-head' }, [el('h2', { text: 'Gestión de turnos' }), refresh]),
+    el('div', { class: 'card-head' }, [el('h2', { text: 'Registro de turnos' }), refresh]),
     el('p', {
       class: 'hint',
       text: 'Anular conserva el historial. Eliminar solo está disponible para turnos sin atenciones.',
     }),
     chips,
     status,
-    list,
+    el('div', { class: 'list-panel' }, [list]),
   ]);
 
   function setStatus(text, kind = 'info') {
@@ -124,11 +124,32 @@ export async function renderManagement(container, ctx) {
   }
 
   function item(entry) {
+    const initials =
+      `${entry.applicant.nombre.charAt(0)}${entry.applicant.apellido.charAt(0)}`.toUpperCase();
+
     const nodes = [
       el('div', { class: 'line' }, [
-        el('strong', {
-          text: `${entry.attentionNumber} · ${entry.applicant.nombre} ${entry.applicant.apellido}`,
-        }),
+        el('div', { class: 'person' }, [
+          el('span', { class: 'avatar', text: initials }),
+          el('span', {}, [
+            el('div', {
+              class: 'name',
+              text: `${entry.applicant.nombre} ${entry.applicant.apellido}`,
+            }),
+            el('div', {
+              class: 'meta',
+              text: [
+                entry.attentionNumber,
+                `Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
+                `Atenciones ${entry.attentionCount}`,
+                entry.certificateIssued ? 'certificado emitido' : null,
+                entry.annulledReason ? `Motivo: ${entry.annulledReason}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+            }),
+          ]),
+        ]),
         el('a', { class: 'chip', href: `#/j/${entry.attentionNumber}`, text: 'Ver' }),
       ]),
       el('div', { class: 'row' }, [
@@ -146,17 +167,6 @@ export async function renderManagement(container, ctx) {
             })
           : null,
       ]),
-      el('span', {
-        class: 'meta',
-        text: [
-          `Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
-          `Atenciones ${entry.attentionCount}`,
-          entry.certificateIssued ? 'certificado emitido' : null,
-          entry.annulledReason ? `Motivo: ${entry.annulledReason}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-      }),
     ];
 
     const actions = el('div', { class: 'row' });
@@ -185,7 +195,7 @@ export async function renderManagement(container, ctx) {
       );
     }
 
-    if (entry.activeSpecialty) {
+    if (entry.activeSpecialty && (entry.state === 'En espera' || entry.state === 'En proceso')) {
       actions.append(
         el('span', { class: 'hint', text: 'Finalizá la atención activa para poder anular.' }),
       );
@@ -226,7 +236,7 @@ export async function renderManagement(container, ctx) {
     const visible = entries.filter(matches);
 
     if (visible.length === 0) {
-      list.append(el('li', { text: 'No hay turnos para este filtro.' }));
+      list.append(el('li', { class: 'empty', text: 'No hay turnos para este filtro.' }));
       return;
     }
 

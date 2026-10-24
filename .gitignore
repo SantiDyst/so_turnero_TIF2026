@@ -48,3 +48,7 @@ Thumbs.db
 .atl/
 .env
 .env.local
+
+# Figma design references
+docs/design/*.png
+docs/design/exports/

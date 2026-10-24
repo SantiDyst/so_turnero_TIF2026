@@ -165,23 +165,27 @@ export async function renderJourney(container, attentionNumber, ctx) {
 
     return el('div', { class: 'row' }, [
       stateSelect,
-      button('Finalizar atención', () => {
-        if (
-          stateSelect.value === 'Finalizada' &&
-          map.needsFinalizeConfirmation(journey, specialty)
-        ) {
-          confirmFinalize = specialty;
-          render();
-          return;
-        }
+      button(
+        'Finalizar atención',
+        () => {
+          if (
+            stateSelect.value === 'Finalizada' &&
+            map.needsFinalizeConfirmation(journey, specialty)
+          ) {
+            confirmFinalize = specialty;
+            render();
+            return;
+          }
 
-        mutate(
-          specialty,
-          'Finalizando atención…',
-          () => api.finalizeAttention(active.id, stateSelect.value),
-          'Atención finalizada.',
-        );
-      }),
+          mutate(
+            specialty,
+            'Finalizando atención…',
+            () => api.finalizeAttention(active.id, stateSelect.value),
+            'Atención finalizada.',
+          );
+        },
+        { class: 'blue' },
+      ),
     ]);
   }
 
@@ -194,20 +198,24 @@ export async function renderJourney(container, attentionNumber, ctx) {
 
     return el('div', { class: 'row' }, [
       resultSelect,
-      button('Guardar resultado', () => {
-        if (!resultSelect.value) {
-          notices.set(specialty, { text: 'Elegí un resultado antes de guardar.', kind: 'error' });
-          render();
-          return;
-        }
+      button(
+        'Guardar resultado',
+        () => {
+          if (!resultSelect.value) {
+            notices.set(specialty, { text: 'Elegí un resultado antes de guardar.', kind: 'error' });
+            render();
+            return;
+          }
 
-        mutate(
-          specialty,
-          'Guardando resultado…',
-          () => api.saveResult(evaluation.id, resultSelect.value),
-          'Resultado guardado.',
-        );
-      }),
+          mutate(
+            specialty,
+            'Guardando resultado…',
+            () => api.saveResult(evaluation.id, resultSelect.value),
+            'Resultado guardado.',
+          );
+        },
+        { class: 'blue' },
+      ),
     ]);
   }
 

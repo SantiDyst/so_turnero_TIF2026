@@ -8,13 +8,13 @@ export async function renderEvaluateList(container, ctx) {
   const refresh = button('Actualizar', () => load());
 
   const panel = el('section', { class: 'panel' }, [
-    el('div', { class: 'card-head' }, [el('h2', { text: 'Turnos para evaluar' }), refresh]),
+    el('div', { class: 'card-head' }, [el('h2', { text: 'Próximos turnos' }), refresh]),
     el('p', {
       class: 'hint',
       text: 'Se listan los turnos En espera y En proceso. Abrí uno para iniciar atenciones.',
     }),
     status,
-    list,
+    el('div', { class: 'list-panel' }, [list]),
   ]);
 
   function setStatus(text, kind = 'error') {
@@ -24,11 +24,24 @@ export async function renderEvaluateList(container, ctx) {
   }
 
   function item(entry) {
+    const initials =
+      `${entry.applicant.nombre.charAt(0)}${entry.applicant.apellido.charAt(0)}`.toUpperCase();
+
     return el('li', {}, [
       el('div', { class: 'line' }, [
-        el('strong', {
-          text: `${entry.attentionNumber} · ${entry.applicant.nombre} ${entry.applicant.apellido}`,
-        }),
+        el('div', { class: 'person' }, [
+          el('span', { class: 'avatar', text: initials }),
+          el('span', {}, [
+            el('div', {
+              class: 'name',
+              text: `${entry.applicant.nombre} ${entry.applicant.apellido}`,
+            }),
+            el('div', {
+              class: 'meta',
+              text: `${entry.attentionNumber} · Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
+            }),
+          ]),
+        ]),
         el('a', { class: 'chip active', href: `#/j/${entry.attentionNumber}`, text: 'Abrir' }),
       ]),
       el('div', { class: 'row' }, [
@@ -49,10 +62,6 @@ export async function renderEvaluateList(container, ctx) {
             })
           : null,
       ]),
-      el('span', {
-        class: 'meta',
-        text: `Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
-      }),
     ]);
   }
 
@@ -68,7 +77,7 @@ export async function renderEvaluateList(container, ctx) {
       list.replaceChildren();
 
       if (active.length === 0) {
-        list.append(el('li', { text: 'No hay turnos pendientes de evaluación.' }));
+        list.append(el('li', { class: 'empty', text: 'No hay turnos pendientes de evaluación.' }));
         return;
       }
 

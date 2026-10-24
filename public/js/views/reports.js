@@ -40,13 +40,16 @@ export function renderReportSection({ journey, specialty, locked = false, onActi
         'Informe guardado.',
       );
     },
-    { disabled: !editable },
+    { class: 'blue', disabled: !editable },
   );
 
   return el('div', {}, [
     el('div', { class: 'card-head' }, [
       el('h3', { text: 'Informe' }),
-      el('span', { class: 'badge', text: report?.reportState ?? 'Pendiente' }),
+      el('span', {
+        class: report?.reportState === 'Completo' ? 'badge active' : 'badge',
+        text: report?.reportState ?? 'Pendiente',
+      }),
     ]),
     el('div', { class: 'grid' }, [observations, el('div', { class: 'row' }, [stateSelect, save])]),
     !locked && !attention
