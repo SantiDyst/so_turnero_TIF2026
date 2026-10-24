@@ -286,6 +286,46 @@ describe('final aptitude and closure database invariants', () => {
     ).toBe(RecorridoEstado.CIERRE_FINAL);
   });
 
+  it('rejects closure while an attention is still active', async () => {
+    const registered = await registerJourney('Active Attention');
+    const journeyId = registered.journey.id;
+
+    await completeAll(
+      journeyId,
+      ResultadoEspecialidad.APTO_PLENO,
+      ResultadoEspecialidad.APTO_PLENO,
+    );
+
+    const journey = await prisma.client.recorrido.findUniqueOrThrow({
+      where: { id: journeyId },
+      select: { postulanteId: true },
+    });
+    const evaluation = await evaluationOf(journeyId, Especialidad.PSICOLOGIA);
+    const professional = await prisma.client.profesional.create({
+      data: {
+        nombre: `Active Closure ${Date.now()}`,
+        especialidad: Especialidad.PSICOLOGIA,
+      },
+    });
+
+    await prisma.client.atencion.create({
+      data: {
+        recorridoId: journeyId,
+        postulanteId: journey.postulanteId,
+        especialidad: Especialidad.PSICOLOGIA,
+        profesionalId: professional.id,
+        estado: 'EN_ATENCION',
+        startedAt: new Date(),
+        evaluacionId: evaluation.id,
+      },
+    });
+
+    await expect(aptitude.close(journeyId)).rejects.toBeInstanceOf(ConflictException);
+    expect(
+      (await prisma.client.recorrido.findUniqueOrThrow({ where: { id: journeyId } })).estado,
+    ).toBe(RecorridoEstado.EN_ESPERA);
+  });
+
   it('rejects readiness and closure for an unknown journey', async () => {
     const missing = '00000000-0000-4000-8000-000000000000';
     await expect(aptitude.readiness(missing)).rejects.toBeInstanceOf(NotFoundException);
