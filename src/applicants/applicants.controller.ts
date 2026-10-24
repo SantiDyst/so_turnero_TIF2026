@@ -1,10 +1,25 @@
-import { BadRequestException, Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RolUsuario } from '@prisma/client';
 
+import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { RegisterApplicantInput, RegistrationService } from './registration.service';
 
 @ApiTags('Applicants')
+@ApiBearerAuth()
 @Controller('applicants')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles(RolUsuario.ADMIN)
 export class ApplicantsController {
   constructor(private readonly registrationService: RegistrationService) {}
 
@@ -21,6 +36,8 @@ export class ApplicantsController {
         nombre: { type: 'string', example: 'Ada' },
         apellido: { type: 'string', example: 'Lovelace' },
         dni: { type: 'string', example: '12345678' },
+        empresa: { type: 'string', nullable: true, example: 'Ministerio de Salud' },
+        puesto: { type: 'string', nullable: true, example: 'Administrativo' },
       },
     },
   })
@@ -42,10 +59,15 @@ export class ApplicantsController {
       });
     }
 
+    const empresa = typeof body.empresa === 'string' ? body.empresa.trim() : '';
+    const puesto = typeof body.puesto === 'string' ? body.puesto.trim() : '';
+
     return {
       nombre: body.nombre!.trim(),
       apellido: body.apellido!.trim(),
       dni: body.dni!.trim(),
+      empresa: empresa || null,
+      puesto: puesto || null,
     };
   }
 }

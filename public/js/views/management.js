@@ -140,6 +140,7 @@ export async function renderManagement(container, ctx) {
               class: 'meta',
               text: [
                 entry.attentionNumber,
+                [entry.puesto, entry.empresa].filter(Boolean).join(' · ') || null,
                 `Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
                 `Atenciones ${entry.attentionCount}`,
                 entry.certificateIssued ? 'certificado emitido' : null,

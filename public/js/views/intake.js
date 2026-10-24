@@ -10,12 +10,14 @@ export function renderIntake(container, ctx) {
     el('h2', { text: 'Agregar un postulante en espera' }),
     el('p', {
       class: 'hint',
-      text: 'Completá nombre, apellido y DNI para generar el turno. El postulante queda En espera.',
+      text: 'Completá nombre, apellido y DNI para generar el turno. Empresa y puesto son opcionales.',
     }),
     el('div', { class: 'grid two' }, [
-      field('Nombre', input('nombre', { autocomplete: 'off' })),
-      field('Apellido', input('apellido', { autocomplete: 'off' })),
+      field('Nombre', input('nombre', { autocomplete: 'given-name' })),
+      field('Apellido', input('apellido', { autocomplete: 'family-name' })),
       field('DNI', input('dni', { autocomplete: 'off', inputmode: 'numeric' })),
+      field('Empresa', input('empresa', { autocomplete: 'organization' })),
+      field('Puesto', input('puesto', { autocomplete: 'organization-title' })),
     ]),
     el('div', { class: 'row', style: 'margin-top:12px' }, [submit]),
     status,
@@ -56,10 +58,12 @@ export function renderIntake(container, ctx) {
     setStatus('Registrando postulante…');
 
     try {
-      const created = await api.register({
+      const created = await api.registerApplicant({
         nombre: String(data.get('nombre') ?? ''),
         apellido: String(data.get('apellido') ?? ''),
         dni: String(data.get('dni') ?? ''),
+        empresa: String(data.get('empresa') ?? ''),
+        puesto: String(data.get('puesto') ?? ''),
       });
       ctx.clearBanner();
       status.hidden = true;

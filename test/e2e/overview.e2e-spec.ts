@@ -5,6 +5,11 @@ import request from 'supertest';
 import { createApp } from '../../src/app.factory';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { assertIsolatedSchema } from '../support/runtime';
+import {
+  adminSessionHeaders,
+  professionalSessions,
+  type SessionHeaders,
+} from '../support/sessions';
 
 interface OverviewEntry {
   applicant: { nombre: string; apellido: string };
@@ -16,13 +21,16 @@ interface OverviewEntry {
 
 describe('journey overview HTTP API', () => {
   const prisma = new PrismaService();
+  const authAs = professionalSessions(prisma);
   let app: INestApplication;
+  let admin: SessionHeaders;
   const stamp = Date.now().toString(36);
 
   beforeAll(async () => {
     await assertIsolatedSchema();
     app = await createApp();
     await app.init();
+    admin = await adminSessionHeaders(prisma);
   });
 
   afterAll(async () => {
@@ -33,10 +41,14 @@ describe('journey overview HTTP API', () => {
   it('lists registered journeys with their state and evaluation progress', async () => {
     const registered = await request(app.getHttpServer())
       .post('/applicants')
+      .set(admin)
       .send({ nombre: 'Overview', apellido: 'Overview', dni: `overview-${stamp}` })
       .expect(201);
 
-    const response = await request(app.getHttpServer()).get('/journeys/overview').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/journeys/overview')
+      .set(admin)
+      .expect(200);
     const entries = response.body as OverviewEntry[];
     const entry = entries.find(
       (candidate) => candidate.attentionNumber === registered.body.journey.attentionNumber,
@@ -57,6 +69,7 @@ describe('journey overview HTTP API', () => {
     const stampSecond = `${stamp}b`;
     const registered = await request(app.getHttpServer())
       .post('/applicants')
+      .set(admin)
       .send({ nombre: 'Overview', apellido: 'Active', dni: `overview-${stampSecond}` })
       .expect(201);
 
@@ -66,10 +79,14 @@ describe('journey overview HTTP API', () => {
 
     await request(app.getHttpServer())
       .post(`/journeys/${registered.body.journey.id}/attentions`)
-      .send({ specialty: Especialidad.PSICOLOGIA, professionalId: professional.id })
+      .set(await authAs(professional.id))
+      .send({ specialty: Especialidad.PSICOLOGIA })
       .expect(201);
 
-    const response = await request(app.getHttpServer()).get('/journeys/overview').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/journeys/overview')
+      .set(admin)
+      .expect(200);
     const entry = (response.body as OverviewEntry[]).find(
       (candidate) => candidate.attentionNumber === registered.body.journey.attentionNumber,
     );

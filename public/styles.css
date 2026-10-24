@@ -677,3 +677,129 @@ a {
     padding: 4px 7px;
   }
 }
+
+[hidden] {
+  display: none !important;
+}
+
+.auth-panel {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.topnav .account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.account-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--link);
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.portal-hero {
+  display: grid;
+  gap: 8px;
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.portal-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+}
+
+.portal-card.bio {
+  border-top: 4px solid var(--blue);
+}
+
+.portal-card.clinica {
+  border-top: 4px solid var(--green);
+}
+
+.portal-card.psico {
+  border-top: 4px solid #4bb8b0;
+}
+
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--gradient);
+}
+
+.share {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.share input {
+  flex: 1 1 auto;
+  font-size: 13px;
+}
+
+.public-cert {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .account-name {
+    display: none;
+  }
+
+  .share {
+    flex-wrap: wrap;
+  }
+}
+h4 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}

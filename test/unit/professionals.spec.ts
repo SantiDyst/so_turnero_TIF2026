@@ -18,6 +18,7 @@ describe('professional listing', () => {
         nombre: 'Dra. Bio',
         especialidad: Especialidad.BIOQUIMICA,
         disponibilidad: DisponibilidadProfesional.DISPONIBLE,
+        usuarioId: null,
       },
     ]);
 
@@ -27,12 +28,19 @@ describe('professional listing', () => {
         name: 'Dra. Bio',
         specialty: Especialidad.BIOQUIMICA,
         availability: 'Disponible',
+        accountLinked: false,
       },
     ]);
 
     expect(findMany).toHaveBeenCalledWith({
       orderBy: [{ especialidad: 'asc' }, { nombre: 'asc' }],
-      select: { id: true, nombre: true, especialidad: true, disponibilidad: true },
+      select: {
+        id: true,
+        nombre: true,
+        especialidad: true,
+        disponibilidad: true,
+        usuarioId: true,
+      },
     });
   });
 
@@ -43,13 +51,18 @@ describe('professional listing', () => {
         nombre: 'Dr. Clinical',
         especialidad: Especialidad.CLINICA_MEDICA,
         disponibilidad: DisponibilidadProfesional.OCUPADO,
+        usuarioId: 'user-clinical',
       },
     ]);
 
     const [listed] = await service.list();
 
     expect(listed).toEqual(
-      expect.objectContaining({ availability: 'Ocupado', specialty: Especialidad.CLINICA_MEDICA }),
+      expect.objectContaining({
+        availability: 'Ocupado',
+        specialty: Especialidad.CLINICA_MEDICA,
+        accountLinked: true,
+      }),
     );
   });
 

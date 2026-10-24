@@ -17,7 +17,7 @@ export interface AnnulJourneyInput {
 export class JourneyAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async annul(journeyId: string, input: AnnulJourneyInput) {
+  async annul(journeyId: string, input: AnnulJourneyInput, actorId: string) {
     const motivo = input.motivo.trim();
 
     if (motivo.length === 0) {
@@ -48,7 +48,9 @@ export class JourneyAdminService {
           estado: RecorridoEstado.ANULADA,
           motivoAnulacion: motivo,
           anuladaAt,
+          anuladoPorId: actorId,
         },
+        include: { anuladoPor: { select: { id: true, nombre: true } } },
       });
 
       return {
@@ -57,6 +59,9 @@ export class JourneyAdminService {
         state: toJourneyState(updated.estado),
         reason: updated.motivoAnulacion,
         annulledAt: updated.anuladaAt,
+        annulledBy: updated.anuladoPor
+          ? { id: updated.anuladoPor.id, name: updated.anuladoPor.nombre }
+          : null,
       };
     });
   }

@@ -22,17 +22,16 @@ function notice(noticeState) {
 
 export async function renderJourney(container, attentionNumber, ctx) {
   let journey;
-  let professionals;
   let readiness;
   let confirmFinalize = null;
   const notices = new Map();
 
+  const isAdmin = ctx.user?.rol === 'ADMIN';
+  const isProfessional = ctx.user?.rol === 'PROFESIONAL';
+
   async function load() {
     journey = await api.journey(attentionNumber);
-    [professionals, readiness] = await Promise.all([
-      api.professionals(),
-      api.readiness(journey.journey.id),
-    ]);
+    readiness = await api.readiness(journey.journey.id);
   }
 
   async function mutate(key, pendingText, action, successText) {
@@ -56,14 +55,18 @@ export async function renderJourney(container, attentionNumber, ctx) {
     render();
   }
 
+  function canWorkOn(specialty) {
+    return isProfessional && ctx.user.specialty === specialty;
+  }
+
   function header() {
     const { applicant, journey: journeyInfo } = journey;
 
     return el('section', { class: 'panel' }, [
       el('a', {
         class: 'back',
-        href: map.isClosed(journey) ? '#/gestion' : '#/evaluar',
-        text: map.isClosed(journey) ? '← Volver a gestión' : '← Volver a evaluar',
+        href: isAdmin ? '#/gestion' : '#/evaluar',
+        text: isAdmin ? '← Volver a gestión' : '← Volver a mi jornada',
       }),
       el('div', { class: 'card-head', style: 'margin-top:10px' }, [
         el('h1', {
@@ -76,6 +79,8 @@ export async function renderJourney(container, attentionNumber, ctx) {
       ]),
       el('dl', {}, [
         row('DNI', applicant.dni),
+        ...(journeyInfo.empresa ? [row('Empresa', journeyInfo.empresa)] : []),
+        ...(journeyInfo.puesto ? [row('Puesto', journeyInfo.puesto)] : []),
         row('Estado del recorrido', journeyInfo.state),
         ...(journeyInfo.derivedState ? [row('Estado derivado', journeyInfo.derivedState)] : []),
         row(
@@ -93,33 +98,14 @@ export async function renderJourney(container, attentionNumber, ctx) {
   }
 
   function startRow(specialty) {
-    const candidates = professionals.filter(
-      (professional) =>
-        professional.specialty === specialty && professional.availability === 'Disponible',
-    );
-
-    if (candidates.length === 0) {
-      return el('p', {
-        class: 'hint',
-        text: 'No hay profesionales disponibles para esta especialidad.',
-      });
-    }
-
-    const professionalSelect = select(
-      'professionalId',
-      candidates.map((professional) => [professional.id, professional.name]),
-      candidates[0].id,
-    );
-
     return el('div', { class: 'row' }, [
-      professionalSelect,
       button(
         'Iniciar atención',
         () =>
           mutate(
             specialty,
             'Iniciando atención…',
-            () => api.startAttention(journey.journey.id, specialty, professionalSelect.value),
+            () => api.startAttention(journey.journey.id, specialty),
             'Atención iniciada.',
           ),
         { class: 'primary' },
@@ -128,6 +114,15 @@ export async function renderJourney(container, attentionNumber, ctx) {
   }
 
   function finalizeRow(specialty, active) {
+    const owned = active.professional?.id === ctx.user?.profesionalId;
+
+    if (!owned) {
+      return el('p', {
+        class: 'hint',
+        text: `Atención activa de ${active.professional?.name ?? 'otro profesional'}.`,
+      });
+    }
+
     if (confirmFinalize === specialty) {
       return el('div', { class: 'notice' }, [
         el('p', {
@@ -260,6 +255,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
     const latest = map.latestAttentionOf(journey, specialty);
     const report = map.reportOf(journey, specialty);
     const blocker = map.sequenceBlocker(journey, specialty);
+    const canAct = canWorkOn(specialty);
 
     const badgeClass =
       evaluation?.state === map.EVALUATION_COMPLETE
@@ -299,15 +295,18 @@ export async function renderJourney(container, attentionNumber, ctx) {
       ]),
     );
 
-    if (!blocker && active) {
-      nodes.push(finalizeRow(specialty, active));
-    } else if (!blocker && map.canStart(journey, specialty)) {
-      nodes.push(startRow(specialty));
-    } else if (!blocker && map.isClosed(journey)) {
-      nodes.push(el('p', { class: 'hint', text: 'Recorrido cerrado.' }));
+    if (canAct && !blocker) {
+      if (active) {
+        nodes.push(finalizeRow(specialty, active));
+      } else if (map.canStart(journey, specialty)) {
+        nodes.push(startRow(specialty));
+      } else if (map.isClosed(journey)) {
+        nodes.push(el('p', { class: 'hint', text: 'Recorrido cerrado.' }));
+      }
     }
 
     if (
+      canAct &&
       !blocker &&
       evaluation &&
       map.hasAttentionFor(journey, specialty) &&
@@ -317,7 +316,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
       nodes.push(resultRow(specialty, evaluation));
     }
 
-    if (!blocker && evaluation && map.hasAttentionFor(journey, specialty)) {
+    if (canAct && !blocker && evaluation && map.hasAttentionFor(journey, specialty)) {
       nodes.push(completionRow(specialty, evaluation));
     }
 
@@ -325,7 +324,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
       renderReportSection({
         journey,
         specialty,
-        locked: Boolean(blocker),
+        locked: Boolean(blocker) || !canAct,
         onAction: (pendingText, action, successText) =>
           mutate(specialty, pendingText, action, successText),
         onError: (message) => {
@@ -338,18 +337,21 @@ export async function renderJourney(container, attentionNumber, ctx) {
     return el('section', { class: `card ${map.SPECIALTY_CLASS[specialty]}` }, nodes);
   }
 
+  function closurePanel() {
+    const canCloseJourney = isProfessional && ctx.user.specialty === 'CLINICA_MEDICA';
+
+    return renderClosurePanel({
+      journey,
+      readiness,
+      readOnly: !canCloseJourney,
+      notice: notices.get('closure'),
+      onAction: (pendingText, action, successText) =>
+        mutate('closure', pendingText, action, successText),
+    });
+  }
+
   function render() {
-    container.replaceChildren(
-      header(),
-      ...map.SPECIALTIES.map(card),
-      renderClosurePanel({
-        journey,
-        readiness,
-        notice: notices.get('closure'),
-        onAction: (pendingText, action, successText) =>
-          mutate('closure', pendingText, action, successText),
-      }),
-    );
+    container.replaceChildren(header(), ...map.SPECIALTIES.map(card), closurePanel());
   }
 
   await load();

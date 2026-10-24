@@ -17,6 +17,7 @@
     "smoke:di": "cross-env DATABASE_URL=postgresql://runtime:runtime@ep-runtime-pooler.us-east-2.aws.neon.tech/so_turnero?sslmode=require tsx scripts/di-smoke.ts",
     "smoke:health": "cross-env DATABASE_URL=postgresql://runtime:runtime@ep-runtime-pooler.us-east-2.aws.neon.tech/so_turnero?sslmode=require tsx scripts/health-smoke.ts",
     "seed:professionals": "tsx scripts/seed-professionals.ts",
+    "create:admin": "tsx scripts/create-admin.ts",
     "demo:reset": "tsx scripts/reset-demo.ts",
     "test": "npm run test:unit && npm run test:ui && npm run test:integration && npm run test:e2e",
     "test:unit": "jest --runInBand --selectProjects unit",

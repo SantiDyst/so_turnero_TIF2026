@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -9,7 +11,13 @@ import { Especialidad, Prisma, RecorridoEstado } from '@prisma/client';
 import { lockJourney } from '../aptitude/aptitude.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { isPrismaConflict } from '../shared/prisma-error.mapper';
-import { buildCertificateView, certificateIdentifier, CertificateView } from './certificate.view';
+import {
+  buildCertificateView,
+  buildPublicCertificateView,
+  certificateIdentifier,
+  CertificateView,
+  PublicCertificateView,
+} from './certificate.view';
 
 export interface IssueCertificateInput {
   professionalId?: string;
@@ -31,6 +39,10 @@ const CLINICAL_SPECIALTY = Especialidad.CLINICA_MEDICA;
 const CERTIFICATE_INCLUDE = {
   profesional: { select: { id: true, nombre: true } },
 } satisfies Prisma.CertificadoInclude;
+
+function createCertificateToken(): string {
+  return randomBytes(32).toString('base64url');
+}
 
 export function resolveResponsibleProfessional(
   requestedProfessionalId: string | undefined,
@@ -75,6 +87,36 @@ export class CertificatesService {
       certificate: journey.certificado,
       attentionNumber: journey.numeroAtencion,
       applicant: journey.postulante,
+    });
+  }
+
+  async readPublic(token: string): Promise<PublicCertificateView> {
+    const certificate = await this.prisma.client.certificado.findUnique({
+      where: { token },
+      select: {
+        id: true,
+        identificador: true,
+        token: true,
+        aptitudFinal: true,
+        emitidoAt: true,
+        profesional: { select: { id: true, nombre: true } },
+        recorrido: {
+          select: {
+            numeroAtencion: true,
+            postulante: { select: { id: true, nombre: true, apellido: true } },
+          },
+        },
+      },
+    });
+
+    if (!certificate) {
+      throw new NotFoundException('Certificate not found.');
+    }
+
+    return buildPublicCertificateView({
+      certificate,
+      attentionNumber: certificate.recorrido.numeroAtencion,
+      applicant: certificate.recorrido.postulante,
     });
   }
 
@@ -126,6 +168,7 @@ export class CertificatesService {
           data: {
             recorridoId: journeyId,
             identificador: certificateIdentifier(journey.numeroAtencion),
+            token: createCertificateToken(),
             aptitudFinal: journey.resultadoAptitud.aptitudFinal,
             profesionalId: professional?.id ?? null,
           },

@@ -11,6 +11,7 @@ import { RecitationsService } from '../../src/agenda/recitations.service';
 import { EvaluationsController } from '../../src/evaluations/evaluations.controller';
 import { EvaluationsService } from '../../src/evaluations/evaluations.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { attentionAccessStub, professionalUser } from '../support/actors';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -58,38 +59,48 @@ function completionTransaction(row: AnyRecord, openPendings = 0, attentions = 1)
 describe('pending creation validation', () => {
   it('rejects a pending without a reason', () => {
     const service = evaluationsServiceMock();
-    const controller = new EvaluationsController(service as never);
+    const controller = new EvaluationsController(service as never, attentionAccessStub() as never);
 
-    expect(() => controller.createPending('attention-1', {})).toThrow(BadRequestException);
-    expect(() => controller.createPending('attention-1', { motivo: '   ' })).toThrow(
+    expect(() => controller.createPending('attention-1', {}, professionalUser())).toThrow(
       BadRequestException,
     );
+    expect(() =>
+      controller.createPending('attention-1', { motivo: '   ' }, professionalUser()),
+    ).toThrow(BadRequestException);
     expect(service.createPending).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid limit date', () => {
     const service = evaluationsServiceMock();
-    const controller = new EvaluationsController(service as never);
+    const controller = new EvaluationsController(service as never, attentionAccessStub() as never);
 
     expect(() =>
-      controller.createPending('attention-1', {
-        motivo: 'Retrieve labs',
-        fechaLimite: 'not-a-date',
-      }),
+      controller.createPending(
+        'attention-1',
+        {
+          motivo: 'Retrieve labs',
+          fechaLimite: 'not-a-date',
+        },
+        professionalUser(),
+      ),
     ).toThrow(BadRequestException);
   });
 
-  it('accepts a reason with an optional limit date', () => {
+  it('accepts a reason with an optional limit date', async () => {
     const service = evaluationsServiceMock();
-    const controller = new EvaluationsController(service as never);
+    const controller = new EvaluationsController(service as never, attentionAccessStub() as never);
     service.createPending.mockReturnValue({ ok: true });
 
-    expect(
-      controller.createPending('attention-1', {
-        motivo: '  Retrieve labs  ',
-        fechaLimite: '2026-11-01T10:00:00.000Z',
-      }),
-    ).toEqual({ ok: true });
+    await expect(
+      controller.createPending(
+        'attention-1',
+        {
+          motivo: '  Retrieve labs  ',
+          fechaLimite: '2026-11-01T10:00:00.000Z',
+        },
+        professionalUser(),
+      ),
+    ).resolves.toEqual({ ok: true });
     expect(service.createPending).toHaveBeenCalledWith('attention-1', {
       motivo: 'Retrieve labs',
       fechaLimite: new Date('2026-11-01T10:00:00.000Z'),
@@ -159,25 +170,29 @@ describe('pending evaluation resolution', () => {
 describe('evaluation result validation', () => {
   it('rejects PENDIENTE and unsupported results', () => {
     const service = evaluationsServiceMock();
-    const controller = new EvaluationsController(service as never);
+    const controller = new EvaluationsController(service as never, attentionAccessStub() as never);
 
-    expect(() => controller.setResult('evaluation-1', { resultado: 'PENDIENTE' })).toThrow(
-      BadRequestException,
-    );
-    expect(() => controller.setResult('evaluation-1', { resultado: 'APTO' })).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      controller.setResult('evaluation-1', { resultado: 'PENDIENTE' }, professionalUser()),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      controller.setResult('evaluation-1', { resultado: 'APTO' }, professionalUser()),
+    ).toThrow(BadRequestException);
     expect(service.setResult).not.toHaveBeenCalled();
   });
 
-  it('accepts every supported specialty result', () => {
+  it('accepts every supported specialty result', async () => {
     const service = evaluationsServiceMock();
-    const controller = new EvaluationsController(service as never);
+    const controller = new EvaluationsController(service as never, attentionAccessStub() as never);
     service.setResult.mockReturnValue({ ok: true });
 
-    controller.setResult('evaluation-1', {
-      resultado: ResultadoEspecialidad.APTO_CONDICIONAL,
-    });
+    await controller.setResult(
+      'evaluation-1',
+      {
+        resultado: ResultadoEspecialidad.APTO_CONDICIONAL,
+      },
+      professionalUser(),
+    );
 
     expect(service.setResult).toHaveBeenCalledWith('evaluation-1', {
       resultado: ResultadoEspecialidad.APTO_CONDICIONAL,

@@ -1,6 +1,7 @@
 import { api } from '../api-client.js';
 import { button, el } from '../dom.js';
 import { formatDate } from '../format.js';
+import { certificateSharePath } from '../routes-map.js';
 import * as map from '../state-map.js';
 
 function flag(label, value) {
@@ -11,10 +12,32 @@ function detail(label, value) {
   return el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
 }
 
-function openCertificateModal(certificate) {
-  document.querySelector('.modal')?.remove();
+function shareUrl(certificate) {
+  return `${window.location.origin}${window.location.pathname}${certificateSharePath(certificate.shareToken)}`;
+}
 
-  const sheet = el('article', { id: 'certificate-sheet', class: 'certificate' }, [
+function shareRow(certificate) {
+  const url = shareUrl(certificate);
+  const field = el('input', { readonly: true, value: url, 'aria-label': 'Link del certificado' });
+
+  return el('div', { class: 'share' }, [
+    field,
+    button(
+      'Copiar link',
+      async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          field.select();
+        }
+      },
+      { class: 'chip' },
+    ),
+  ]);
+}
+
+export function buildCertificateSheet(certificate) {
+  return el('article', { id: 'certificate-sheet', class: 'certificate' }, [
     el('h3', { text: 'Certificado de Aptitud' }),
     el('p', {
       class: 'subtitle',
@@ -31,12 +54,22 @@ function openCertificateModal(certificate) {
         certificate.responsibleProfessional?.nombre ?? 'Sin responsable',
       ),
     ]),
-    el('p', { class: 'stamp', text: 'SO Turnero · Consola de verificación' }),
+    el('p', { class: 'stamp', text: 'SO Turnero · Sistema de Salud Ocupacional' }),
   ]);
+}
+
+export function openCertificateModal(certificate) {
+  document.querySelector('.modal')?.remove();
 
   const modal = el('div', { class: 'modal' }, [
     el('div', { class: 'modal-body' }, [
-      sheet,
+      buildCertificateSheet(certificate),
+      certificate.shareToken
+        ? el('div', { class: 'no-print' }, [
+            el('p', { class: 'hint', text: 'Link público para compartir:' }),
+            shareRow(certificate),
+          ])
+        : null,
       el('div', { class: 'row no-print' }, [
         button('Descargar PDF', () => window.print(), { class: 'primary' }),
         button('Cerrar', () => modal.remove()),
@@ -53,7 +86,7 @@ function openCertificateModal(certificate) {
   document.body.append(modal);
 }
 
-function certificateBlock(journey, closed, onAction) {
+function certificateBlock(journey, closed, readOnly, onAction) {
   const certificate = journey.certificate;
 
   if (certificate) {
@@ -68,6 +101,8 @@ function certificateBlock(journey, closed, onAction) {
       el('div', { class: 'row' }, [
         button('Ver certificado', () => openCertificateModal(certificate), { class: 'primary' }),
       ]),
+      el('p', { class: 'hint', text: 'Link público para compartir:' }),
+      shareRow(certificate),
     ]);
   }
 
@@ -85,14 +120,14 @@ function certificateBlock(journey, closed, onAction) {
             },
             'Certificado emitido.',
           ),
-        { class: 'primary', disabled: !closed },
+        { class: 'primary', disabled: !closed || readOnly },
       ),
     ]),
     closed ? null : el('p', { class: 'hint', text: 'Requiere el recorrido cerrado.' }),
   ]);
 }
 
-export function renderClosurePanel({ journey, readiness, notice, onAction }) {
+export function renderClosurePanel({ journey, readiness, notice, onAction, readOnly = false }) {
   const closed = map.isClosed(journey);
   const aptitude = journey.aptitude;
 
@@ -118,7 +153,7 @@ export function renderClosurePanel({ journey, readiness, notice, onAction }) {
             () => api.close(journey.journey.id),
             'Recorrido cerrado.',
           ),
-        { class: 'primary', disabled: !readiness.canClose || closed },
+        { class: 'primary', disabled: !readiness.canClose || closed || readOnly },
       ),
       closed ? el('span', { class: 'badge complete', text: 'Cierre final' }) : null,
     ]),
@@ -134,7 +169,7 @@ export function renderClosurePanel({ journey, readiness, notice, onAction }) {
     );
   }
 
-  nodes.push(certificateBlock(journey, closed, onAction));
+  nodes.push(certificateBlock(journey, closed, readOnly, onAction));
 
   return el('section', { class: 'panel' }, nodes);
 }

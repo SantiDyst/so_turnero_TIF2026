@@ -28,6 +28,7 @@ function journeyFixture(overrides: Record<string, unknown> = {}) {
     certificado: null,
     motivoAnulacion: null,
     anuladaAt: null,
+    anuladoPor: null,
     ...overrides,
   };
 }
@@ -63,6 +64,7 @@ describe('journey overview', () => {
         attentionCount: 1,
         annulledReason: null,
         annulledAt: null,
+        annulledBy: null,
         evaluations: { total: 2, complete: 1 },
         openPendings: 1,
         finalAptitude: 'APTO_CONDICIONAL',

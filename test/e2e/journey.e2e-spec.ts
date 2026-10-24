@@ -11,15 +11,23 @@ import request from 'supertest';
 import { createApp } from '../../src/app.factory';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { assertIsolatedSchema } from '../support/runtime';
+import {
+  adminSessionHeaders,
+  professionalSessions,
+  type SessionHeaders,
+} from '../support/sessions';
 
 describe('first functional journey HTTP API', () => {
   const prisma = new PrismaService();
+  const authAs = professionalSessions(prisma);
   let app: INestApplication;
+  let admin: SessionHeaders;
 
   beforeAll(async () => {
     await assertIsolatedSchema();
     app = await createApp();
     await app.init();
+    admin = await adminSessionHeaders(prisma);
   });
 
   afterAll(async () => {
@@ -30,6 +38,7 @@ describe('first functional journey HTTP API', () => {
   async function registerApplicant(name: string) {
     const response = await request(app.getHttpServer())
       .post('/applicants')
+      .set(admin)
       .send({ nombre: name, apellido: 'Applicant', dni: `${name}-dni` })
       .expect(201);
     return response.body as {
@@ -40,7 +49,11 @@ describe('first functional journey HTTP API', () => {
 
   it('registers valid applicants and rejects every missing required field without persistence', async () => {
     const before = await prisma.client.postulante.count();
-    const invalid = await request(app.getHttpServer()).post('/applicants').send({}).expect(400);
+    const invalid = await request(app.getHttpServer())
+      .post('/applicants')
+      .set(admin)
+      .send({})
+      .expect(400);
     expect(invalid.body.message).toBe('Validation failed.');
     expect(invalid.body.missingFields).toEqual(['nombre', 'apellido', 'dni']);
     expect(await prisma.client.postulante.count()).toBe(before);
@@ -52,7 +65,7 @@ describe('first functional journey HTTP API', () => {
 
   it('lists only waiting journeys and resolves equivalent journey identifiers', async () => {
     const registered = await registerApplicant('E2E Lookup');
-    const queue = await request(app.getHttpServer()).get('/queue').expect(200);
+    const queue = await request(app.getHttpServer()).get('/queue').set(admin).expect(200);
     expect(queue.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -65,20 +78,24 @@ describe('first functional journey HTTP API', () => {
 
     const byApplicant = await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ applicantId: registered.applicant.id })
       .expect(200);
     const byNumber = await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ attentionNumber: registered.journey.attentionNumber })
       .expect(200);
     expect(byApplicant.body).toEqual(byNumber.body);
-    await request(app.getHttpServer()).get('/journeys').expect(400);
+    await request(app.getHttpServer()).get('/journeys').set(admin).expect(400);
     await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ applicantId: 'missing', attentionNumber: 'AT-0' })
       .expect(400);
     await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ attentionNumber: 'AT-999999999' })
       .expect(404);
   });
@@ -95,25 +112,29 @@ describe('first functional journey HTTP API', () => {
 
     const started = await request(app.getHttpServer())
       .post(`/journeys/${first.journey.id}/attentions`)
-      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
+      .set(await authAs(professional.id))
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
       .expect(201);
     expect(started.body.state).toBe('En atención');
     expect(started.body.startedAt).toBeTruthy();
     await request(app.getHttpServer())
       .post(`/journeys/${first.journey.id}/attentions`)
-      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: alternate.id })
+      .set(await authAs(alternate.id))
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
       .expect(409);
     await request(app.getHttpServer())
       .post(`/journeys/${second.journey.id}/attentions`)
-      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
+      .set(await authAs(professional.id))
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
       .expect(409);
 
-    const queue = await request(app.getHttpServer()).get('/queue').expect(200);
+    const queue = await request(app.getHttpServer()).get('/queue').set(admin).expect(200);
     expect(
       queue.body.some((entry: { applicantId: string }) => entry.applicantId === first.applicant.id),
     ).toBe(false);
     const finalized = await request(app.getHttpServer())
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(await authAs(professional.id))
       .send({ state: 'Finalizada' })
       .expect(200);
     expect(finalized.body).toEqual(
@@ -125,6 +146,7 @@ describe('first functional journey HTTP API', () => {
     );
     await request(app.getHttpServer())
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(await authAs(professional.id))
       .send({ state: 'Finalizada' })
       .expect(409);
   });
@@ -136,6 +158,7 @@ describe('first functional journey HTTP API', () => {
     try {
       const response = await request(restarted.getHttpServer())
         .get('/journeys')
+        .set(admin)
         .query({ applicantId: registered.applicant.id })
         .expect(200);
       expect(response.body.journey).toEqual(
@@ -158,10 +181,11 @@ describe('first functional journey HTTP API', () => {
         }),
       ),
     );
-    const start = (professionalId: string) =>
+    const start = async (professionalId: string) =>
       request(app.getHttpServer())
         .post(`/journeys/${registered.journey.id}/attentions`)
-        .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId });
+        .set(await authAs(professionalId))
+        .send({ specialty: Especialidad.CLINICA_MEDICA });
     const responses = await Promise.all([
       start(firstProfessional.id),
       start(secondProfessional.id),
@@ -180,11 +204,13 @@ describe('first functional journey HTTP API', () => {
     });
     const started = await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/attentions`)
-      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
+      .set(await authAs(professional.id))
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
       .expect(201);
 
     const finalized = await request(app.getHttpServer())
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(await authAs(professional.id))
       .send({ state: 'Finalizada' })
       .expect(200);
     expect(finalized.body).toEqual(
@@ -201,6 +227,7 @@ describe('first functional journey HTTP API', () => {
     try {
       const response = await request(restarted.getHttpServer())
         .get('/journeys')
+        .set(admin)
         .query({ applicantId: registered.applicant.id })
         .expect(200);
       expect(response.body.journey).toEqual(
@@ -235,11 +262,13 @@ describe('first functional journey HTTP API', () => {
     });
     const started = await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/attentions`)
-      .send({ specialty: Especialidad.CLINICA_MEDICA, professionalId: professional.id })
+      .set(await authAs(professional.id))
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
       .expect(201);
 
     const finalized = await request(app.getHttpServer())
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(await authAs(professional.id))
       .send({ state: 'Pendiente' })
       .expect(200);
     expect(finalized.body).toEqual(
@@ -280,31 +309,59 @@ describe('first functional journey HTTP API', () => {
       const professional = await prisma.client.profesional.create({
         data: { nombre: `Dr. E2E Reports ${specialty}`, especialidad: specialty },
       });
+      const session = await authAs(professional.id);
       const started = await request(app.getHttpServer())
         .post(`/journeys/${registered.journey.id}/attentions`)
-        .send({ specialty, professionalId: professional.id })
+        .set(session)
+        .send({ specialty })
         .expect(201);
       attentionIds[specialty] = started.body.attentionId;
 
       await request(app.getHttpServer())
         .patch(`/attentions/${started.body.attentionId}/finalize`)
+        .set(session)
         .send({
           state: specialty === Especialidad.CLINICA_MEDICA ? 'Pendiente' : 'Finalizada',
         })
         .expect(200);
     }
 
+    const biochemistryProfessional = await prisma.client.profesional.findFirstOrThrow({
+      where: { nombre: `Dr. E2E Reports ${Especialidad.BIOQUIMICA}` },
+    });
+    const clinicalProfessional = await prisma.client.profesional.findFirstOrThrow({
+      where: { nombre: `Dr. E2E Reports ${Especialidad.CLINICA_MEDICA}` },
+    });
+
     await request(app.getHttpServer())
       .put(`/attentions/${attentionIds[Especialidad.BIOQUIMICA]}/report`)
+      .set(await authAs(biochemistryProfessional.id))
       .send({ observations: 'Lab values within range', state: 'Completo' })
       .expect(200);
+
     await request(app.getHttpServer())
       .put(`/attentions/${attentionIds[Especialidad.CLINICA_MEDICA]}/report`)
-      .send({ observations: 'Draft clinical note', state: 'Pendiente' })
+      .set(await authAs(clinicalProfessional.id))
+      .send({
+        observations: 'Draft clinical note',
+        state: 'Pendiente',
+        datos: { pesoKg: 'not-a-number' },
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .put(`/attentions/${attentionIds[Especialidad.CLINICA_MEDICA]}/report`)
+      .set(await authAs(clinicalProfessional.id))
+      .send({
+        observations: 'Draft clinical note',
+        state: 'Pendiente',
+        datos: { pesoKg: 72.5, tallaCm: 175, presionArterial: ' 120/80 ' },
+      })
       .expect(200);
 
     const response = await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ applicantId: registered.applicant.id })
       .expect(200);
     const body = response.body as {
@@ -319,6 +376,9 @@ describe('first functional journey HTTP API', () => {
         specialtyResult: string | null;
         finalAptitude: string | null;
         responsible: { area: string; professional: { id: string } | null };
+        data: Record<string, unknown> | null;
+        fields: { key: string; label: string; type: string }[];
+        schemaVersion: number;
         updatedAt: string | null;
       }[];
       certificate: unknown;
@@ -363,8 +423,15 @@ describe('first functional journey HTTP API', () => {
       expect.objectContaining({
         reportState: 'Pendiente',
         observations: 'Draft clinical note',
+        data: { pesoKg: 72.5, tallaCm: 175, presionArterial: '120/80' },
+        schemaVersion: 1,
       }),
     );
+    expect(clinical?.fields.map((field) => field.key)).toEqual(
+      expect.arrayContaining(['pesoKg', 'tallaCm', 'presionArterial']),
+    );
+    expect(biochemistry?.data).toBeNull();
+    expect(psychology?.data).toBeNull();
     expect(psychology).toEqual(
       expect.objectContaining({
         reportId: null,

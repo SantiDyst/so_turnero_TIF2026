@@ -15,11 +15,13 @@ import {
   JourneyReportsSource,
   ReportEntryView,
 } from './report.view';
+import { REPORT_SCHEMA_VERSION, normalizeReportData } from './report-fields';
 
 export interface SaveReportInput {
   observations: string;
   state: InformeEstado;
   professionalId?: string;
+  datos?: unknown;
 }
 
 interface AttentionSource {
@@ -69,6 +71,12 @@ export class ReportsService {
       }
 
       const evaluation = await this.resolveEvaluation(transaction, attention);
+      const normalized = normalizeReportData(evaluation.especialidad, input.datos);
+
+      if (normalized.errors.length > 0) {
+        throw new BadRequestException(normalized.errors.join(' '));
+      }
+
       const journey = await lockJourney(transaction, attention.recorridoId);
 
       if (journey.estado === JourneyState.closed) {
@@ -90,6 +98,7 @@ export class ReportsService {
       }
 
       const completadoAt = input.state === InformeEstado.COMPLETO ? new Date() : null;
+      const datos = normalized.data ?? Prisma.DbNull;
       const report = await transaction.informe.upsert({
         where: { evaluacionId: evaluation.id },
         create: {
@@ -97,6 +106,8 @@ export class ReportsService {
           atencionId: attention.id,
           profesionalId: professionalId,
           observaciones: input.observations,
+          datos,
+          schemaVersion: REPORT_SCHEMA_VERSION,
           estado: input.state,
           completadoAt,
         },
@@ -104,6 +115,8 @@ export class ReportsService {
           atencionId: attention.id,
           profesionalId: professionalId,
           observaciones: input.observations,
+          datos,
+          schemaVersion: REPORT_SCHEMA_VERSION,
           estado: input.state,
           completadoAt,
         },

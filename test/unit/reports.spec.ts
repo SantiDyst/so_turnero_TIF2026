@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
   Especialidad,
   EvaluacionEstado,
@@ -9,6 +9,7 @@ import {
 import { buildJourneyReports, JourneyReportsSource } from '../../src/reports/report.view';
 import { ReportsController } from '../../src/reports/reports.controller';
 import { InformeState, toEvaluationState, toInformeState } from '../../src/shared/state-vocabulary';
+import { attentionAccessStub, professionalUser } from '../support/actors';
 
 type ReportServiceMock = {
   saveReport: jest.Mock;
@@ -16,7 +17,7 @@ type ReportServiceMock = {
 };
 
 function makeController(service: ReportServiceMock): ReportsController {
-  return new ReportsController(service as never);
+  return new ReportsController(service as never, attentionAccessStub() as never);
 }
 
 function serviceMock(): ReportServiceMock {
@@ -41,6 +42,8 @@ function reportsSource(): JourneyReportsSource {
         informe: {
           id: 'report-biochemistry',
           observaciones: 'Lab values within range',
+          datos: { hemoglobina: 14.2 },
+          schemaVersion: 1,
           estado: InformeEstado.COMPLETO,
           updatedAt: new Date('2026-11-05T10:00:00.000Z'),
           profesional: null,
@@ -64,9 +67,13 @@ describe('report body validation', () => {
     const controller = makeController(service);
 
     expect(() =>
-      controller.save('attention-1', { observations: '   ', state: 'Completo' }),
+      controller.save(
+        'attention-1',
+        { observations: '   ', state: 'Completo' },
+        professionalUser(),
+      ),
     ).toThrow(BadRequestException);
-    expect(() => controller.save('attention-1', { state: 'Completo' })).toThrow(
+    expect(() => controller.save('attention-1', { state: 'Completo' }, professionalUser())).toThrow(
       BadRequestException,
     );
     expect(service.saveReport).not.toHaveBeenCalled();
@@ -77,39 +84,52 @@ describe('report body validation', () => {
     const controller = makeController(service);
 
     expect(() =>
-      controller.save('attention-1', { observations: 'Complete note', state: 'COMPLETO' }),
+      controller.save(
+        'attention-1',
+        { observations: 'Complete note', state: 'COMPLETO' },
+        professionalUser(),
+      ),
     ).toThrow(BadRequestException);
     expect(() =>
-      controller.save('attention-1', { observations: 'Complete note', state: 'Completa' }),
+      controller.save(
+        'attention-1',
+        { observations: 'Complete note', state: 'Completa' },
+        professionalUser(),
+      ),
     ).toThrow(BadRequestException);
     expect(service.saveReport).not.toHaveBeenCalled();
   });
 
-  it('defaults to a pending draft and trims observations', () => {
+  it('defaults to a pending draft and trims observations', async () => {
     const service = serviceMock();
     const controller = makeController(service);
     service.saveReport.mockReturnValue({ ok: true });
 
-    expect(controller.save('attention-1', { observations: '  Draft note  ' })).toEqual({
+    await expect(
+      controller.save('attention-1', { observations: '  Draft note  ' }, professionalUser()),
+    ).resolves.toEqual({
       ok: true,
     });
     expect(service.saveReport).toHaveBeenCalledWith('attention-1', {
       observations: 'Draft note',
       state: InformeEstado.PENDIENTE,
-      professionalId: undefined,
+      professionalId: 'professional-1',
     });
   });
 
-  it('accepts Completo with observations and a professional', () => {
+  it('accepts Completo with observations and uses the session professional', async () => {
     const service = serviceMock();
     const controller = makeController(service);
     service.saveReport.mockReturnValue({ ok: true });
 
-    controller.save('attention-1', {
-      observations: '  Ready  ',
-      state: 'Completo',
-      professionalId: ' professional-1 ',
-    });
+    await controller.save(
+      'attention-1',
+      {
+        observations: '  Ready  ',
+        state: 'Completo',
+      },
+      professionalUser(),
+    );
 
     expect(service.saveReport).toHaveBeenCalledWith('attention-1', {
       observations: 'Ready',
@@ -118,13 +138,17 @@ describe('report body validation', () => {
     });
   });
 
-  it('rejects a blank professionalId', () => {
+  it('rejects a user without a linked professional', () => {
     const service = serviceMock();
     const controller = makeController(service);
 
     expect(() =>
-      controller.save('attention-1', { observations: 'Note', professionalId: '   ' }),
-    ).toThrow(BadRequestException);
+      controller.save(
+        'attention-1',
+        { observations: 'Note' },
+        professionalUser({ profesionalId: null, specialty: null }),
+      ),
+    ).toThrow(ForbiddenException);
     expect(service.saveReport).not.toHaveBeenCalled();
   });
 });
@@ -213,6 +237,8 @@ describe('composed report view', () => {
         informe: {
           id: 'report-clinical',
           observaciones: 'Follow-up required',
+          datos: null,
+          schemaVersion: 1,
           estado: InformeEstado.COMPLETO,
           updatedAt: new Date('2026-11-06T09:30:00.000Z'),
           profesional: { id: 'professional-1', nombre: 'Dr. Clinical' },

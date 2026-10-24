@@ -1,6 +1,7 @@
 import { button, el } from '../dom.js';
 import { api } from '../api-client.js';
-import { APTITUDE_CLASS, JOURNEY_STATE_CLASS, resultLabel, specialtyLabel } from '../state-map.js';
+import { formatDate } from '../format.js';
+import { JOURNEY_STATE_CLASS } from '../state-map.js';
 
 export async function renderEvaluateList(container, ctx) {
   const list = el('ul', { class: 'history' });
@@ -8,10 +9,10 @@ export async function renderEvaluateList(container, ctx) {
   const refresh = button('Actualizar', () => load());
 
   const panel = el('section', { class: 'panel' }, [
-    el('div', { class: 'card-head' }, [el('h2', { text: 'Próximos turnos' }), refresh]),
+    el('div', { class: 'card-head' }, [el('h2', { text: 'Mi jornada' }), refresh]),
     el('p', {
       class: 'hint',
-      text: 'Se listan los turnos En espera y En proceso. Abrí uno para iniciar atenciones.',
+      text: 'Turnos con evaluaciones pendientes de tu especialidad. Abrí uno para iniciar la atención.',
     }),
     status,
     el('div', { class: 'list-panel' }, [list]),
@@ -38,7 +39,14 @@ export async function renderEvaluateList(container, ctx) {
             }),
             el('div', {
               class: 'meta',
-              text: `${entry.attentionNumber} · Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
+              text: [
+                entry.attentionNumber,
+                entry.puesto,
+                entry.empresa,
+                `En cola desde ${formatDate(entry.queuedAt)}`,
+              ]
+                .filter(Boolean)
+                .join(' · '),
             }),
           ]),
         ]),
@@ -46,21 +54,9 @@ export async function renderEvaluateList(container, ctx) {
       ]),
       el('div', { class: 'row' }, [
         el('span', {
-          class: JOURNEY_STATE_CLASS[entry.state] ?? 'badge',
-          text: entry.state,
+          class: JOURNEY_STATE_CLASS[entry.journeyState] ?? 'badge',
+          text: entry.journeyState,
         }),
-        entry.activeSpecialty
-          ? el('span', {
-              class: 'badge active',
-              text: `En atención · ${specialtyLabel(entry.activeSpecialty)}`,
-            })
-          : null,
-        entry.finalAptitude
-          ? el('span', {
-              class: APTITUDE_CLASS[entry.finalAptitude] ?? 'badge',
-              text: resultLabel(entry.finalAptitude),
-            })
-          : null,
       ]),
     ]);
   }
@@ -69,19 +65,16 @@ export async function renderEvaluateList(container, ctx) {
     status.hidden = true;
 
     try {
-      const entries = await api.overview();
-      const active = entries.filter(
-        (entry) => entry.state === 'En espera' || entry.state === 'En proceso',
-      );
+      const entries = await api.queue();
 
       list.replaceChildren();
 
-      if (active.length === 0) {
-        list.append(el('li', { class: 'empty', text: 'No hay turnos pendientes de evaluación.' }));
+      if (entries.length === 0) {
+        list.append(el('li', { class: 'empty', text: 'No tenés turnos pendientes.' }));
         return;
       }
 
-      for (const entry of active) {
+      for (const entry of entries) {
         list.append(item(entry));
       }
     } catch (error) {

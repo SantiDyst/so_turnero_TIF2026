@@ -5,6 +5,11 @@ import request from 'supertest';
 import { createApp } from '../../src/app.factory';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { assertIsolatedSchema } from '../support/runtime';
+import {
+  adminSessionHeaders,
+  professionalSessions,
+  type SessionHeaders,
+} from '../support/sessions';
 
 interface Registered {
   applicant: { id: string };
@@ -43,13 +48,16 @@ interface ScheduledCircuit {
 
 describe('agenda and derivations HTTP API', () => {
   const prisma = new PrismaService();
+  const authAs = professionalSessions(prisma);
   let app: INestApplication;
+  let admin: SessionHeaders;
   let sequence = 0;
 
   beforeAll(async () => {
     await assertIsolatedSchema();
     app = await createApp();
     await app.init();
+    admin = await adminSessionHeaders(prisma);
   });
 
   afterAll(async () => {
@@ -65,6 +73,7 @@ describe('agenda and derivations HTTP API', () => {
     sequence += 1;
     const response = await api()
       .post('/applicants')
+      .set(admin)
       .send({
         nombre: `Agenda E2E ${sequence}`,
         apellido: 'Circuit',
@@ -75,9 +84,12 @@ describe('agenda and derivations HTTP API', () => {
   }
 
   async function createProfessional(name: string, specialty = Especialidad.CLINICA_MEDICA) {
-    return prisma.client.profesional.create({
+    const professional = await prisma.client.profesional.create({
       data: { nombre: name, especialidad: specialty },
     });
+    await authAs(professional.id);
+
+    return professional;
   }
 
   async function evaluationFor(journeyId: string, specialty = Especialidad.CLINICA_MEDICA) {
@@ -89,7 +101,7 @@ describe('agenda and derivations HTTP API', () => {
   }
 
   async function readJourney(applicantId: string): Promise<JourneyRead> {
-    const response = await api().get('/journeys').query({ applicantId }).expect(200);
+    const response = await api().get('/journeys').set(admin).query({ applicantId }).expect(200);
     return response.body as JourneyRead;
   }
 
@@ -100,19 +112,21 @@ describe('agenda and derivations HTTP API', () => {
 
     const started = await api()
       .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(authAs.headers(professional.id))
       .send({
         specialty: Especialidad.CLINICA_MEDICA,
-        professionalId: professional.id,
       })
       .expect(201);
 
     const pending = await api()
       .post(`/attentions/${started.body.attentionId}/pendings`)
+      .set(authAs.headers(professional.id))
       .send({ motivo: 'Agenda recitation' })
       .expect(201);
 
     await api()
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(authAs.headers(professional.id))
       .send({ state: 'Finalizada' })
       .expect(200);
 
@@ -233,17 +247,19 @@ describe('agenda and derivations HTTP API', () => {
     const registered = await registerApplicant();
     const started = await api()
       .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(authAs.headers(first.professionalId))
       .send({
         specialty: Especialidad.CLINICA_MEDICA,
-        professionalId: first.professionalId,
       })
       .expect(201);
     const pending = await api()
       .post(`/attentions/${started.body.attentionId}/pendings`)
+      .set(authAs.headers(first.professionalId))
       .send({ motivo: 'Overlap probe' })
       .expect(201);
     await api()
       .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(authAs.headers(first.professionalId))
       .send({ state: 'Finalizada' })
       .expect(200);
 
@@ -354,9 +370,9 @@ describe('agenda and derivations HTTP API', () => {
     const otherProfessional = await createProfessional('Dr. Derivation Other');
     const otherAttention = await api()
       .post(`/journeys/${other.journey.id}/attentions`)
+      .set(authAs.headers(otherProfessional.id))
       .send({
         specialty: Especialidad.CLINICA_MEDICA,
-        professionalId: otherProfessional.id,
       })
       .expect(201);
 
@@ -410,9 +426,9 @@ describe('agenda and derivations HTTP API', () => {
 
     const started = await api()
       .post(`/journeys/${circuit.registered.journey.id}/attentions`)
+      .set(authAs.headers(circuit.professionalId))
       .send({
         specialty: Especialidad.CLINICA_MEDICA,
-        professionalId: circuit.professionalId,
       })
       .expect(201);
 

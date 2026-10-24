@@ -1,8 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Especialidad, ResultadoEspecialidad } from '@prisma/client';
 
 import {
   buildCertificateView,
+  buildPublicCertificateView,
   certificateIdentifier,
 } from '../../src/certificates/certificate.view';
 import { CertificatesController } from '../../src/certificates/certificates.controller';
@@ -10,6 +11,7 @@ import {
   IssueCertificateResult,
   resolveResponsibleProfessional,
 } from '../../src/certificates/certificates.service';
+import { professionalUser } from '../support/actors';
 
 type CertificateServiceMock = {
   issue: jest.Mock;
@@ -33,6 +35,7 @@ const issuedAt = new Date('2026-11-10T12:00:00.000Z');
 const certificateRecord = {
   id: 'certificate-1',
   identificador: 'CERT-AT-1042',
+  token: 'public-token',
   aptitudFinal: ResultadoEspecialidad.APTO_CONDICIONAL,
   emitidoAt: issuedAt,
   profesional: { id: 'professional-1', nombre: 'Dr. Clinical' },
@@ -58,6 +61,24 @@ describe('certificate view', () => {
       finalAptitude: 'APTO_CONDICIONAL',
       issuedAt,
       responsibleProfessional: { id: 'professional-1', nombre: 'Dr. Clinical' },
+      shareToken: 'public-token',
+    });
+  });
+
+  it('builds a public view without the share token', () => {
+    expect(
+      buildPublicCertificateView({
+        certificate: certificateRecord,
+        attentionNumber: 'AT-1042',
+        applicant: { id: 'applicant-1', nombre: 'Ana', apellido: 'Pérez' },
+      }),
+    ).toEqual({
+      identifier: 'CERT-AT-1042',
+      attentionNumber: 'AT-1042',
+      applicant: { id: 'applicant-1', nombre: 'Ana', apellido: 'Pérez' },
+      finalAptitude: 'APTO_CONDICIONAL',
+      issuedAt,
+      responsibleProfessional: { id: 'professional-1', nombre: 'Dr. Clinical' },
     });
   });
 
@@ -72,46 +93,49 @@ describe('certificate view', () => {
   });
 });
 
-describe('certificate body validation', () => {
-  it('accepts an omitted professionalId', async () => {
+describe('certificate issuance authorization', () => {
+  const clinicalUser = professionalUser({
+    profesionalId: 'clinical-1',
+    specialty: Especialidad.CLINICA_MEDICA,
+  });
+
+  it('issues the certificate for the authenticated clinical professional', async () => {
     const service = serviceMock();
     const controller = makeController(service);
     const response = responseMock();
     service.issue.mockReturnValue({ created: true, certificate: { id: 'certificate-1' } });
 
-    await controller.issue('journey-1', {}, response as never);
+    await controller.issue('journey-1', clinicalUser, response as never);
 
-    expect(service.issue).toHaveBeenCalledWith('journey-1', {});
+    expect(service.issue).toHaveBeenCalledWith('journey-1', { professionalId: 'clinical-1' });
     expect(response.status).toHaveBeenCalledWith(201);
   });
 
-  it('trims an explicit professionalId', async () => {
+  it('rejects a professional from another specialty', async () => {
     const service = serviceMock();
     const controller = makeController(service);
-    service.issue.mockReturnValue({ created: false, certificate: { id: 'certificate-1' } });
 
-    const result = await controller.issue(
-      'journey-1',
-      { professionalId: ' professional-1 ' },
-      responseMock() as never,
-    );
-
-    expect(service.issue).toHaveBeenCalledWith('journey-1', {
-      professionalId: 'professional-1',
-    });
-    expect(result).toEqual({ id: 'certificate-1' });
+    await expect(
+      controller.issue(
+        'journey-1',
+        professionalUser({ specialty: Especialidad.PSICOLOGIA }),
+        responseMock() as never,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.issue).not.toHaveBeenCalled();
   });
 
-  it('rejects a blank or non-string professionalId without calling the service', async () => {
+  it('rejects a user without a professional link', async () => {
     const service = serviceMock();
     const controller = makeController(service);
 
     await expect(
-      controller.issue('journey-1', { professionalId: '   ' }, responseMock() as never),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    await expect(
-      controller.issue('journey-1', { professionalId: 42 }, responseMock() as never),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      controller.issue(
+        'journey-1',
+        professionalUser({ profesionalId: null, specialty: null }),
+        responseMock() as never,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(service.issue).not.toHaveBeenCalled();
   });
 
@@ -129,11 +153,12 @@ describe('certificate body validation', () => {
         finalAptitude: 'APTO_CONDICIONAL',
         issuedAt,
         responsibleProfessional: null,
+        shareToken: 'public-token',
       },
     };
     service.issue.mockResolvedValue(existing);
 
-    await expect(controller.issue('journey-1', {}, response as never)).resolves.toEqual(
+    await expect(controller.issue('journey-1', clinicalUser, response as never)).resolves.toEqual(
       existing.certificate,
     );
     expect(response.status).toHaveBeenCalledWith(200);

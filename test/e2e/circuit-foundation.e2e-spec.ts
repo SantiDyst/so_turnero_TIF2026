@@ -5,6 +5,11 @@ import request from 'supertest';
 import { createApp } from '../../src/app.factory';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { assertIsolatedSchema } from '../support/runtime';
+import {
+  adminSessionHeaders,
+  professionalSessions,
+  type SessionHeaders,
+} from '../support/sessions';
 
 interface Registered {
   applicant: { id: string };
@@ -13,12 +18,15 @@ interface Registered {
 
 describe('circuit foundation HTTP API', () => {
   const prisma = new PrismaService();
+  const authAs = professionalSessions(prisma);
   let app: INestApplication;
+  let admin: SessionHeaders;
 
   beforeAll(async () => {
     await assertIsolatedSchema();
     app = await createApp();
     await app.init();
+    admin = await adminSessionHeaders(prisma);
   });
 
   afterAll(async () => {
@@ -29,6 +37,7 @@ describe('circuit foundation HTTP API', () => {
   async function registerApplicant(name: string): Promise<Registered> {
     const response = await request(app.getHttpServer())
       .post('/applicants')
+      .set(admin)
       .send({ nombre: name, apellido: 'Circuit', dni: `${name}-dni` })
       .expect(201);
     return response.body as Registered;
@@ -38,15 +47,24 @@ describe('circuit foundation HTTP API', () => {
     return prisma.client.profesional.create({ data: { nombre: name, especialidad } });
   }
 
-  function start(journeyId: string, especialidad: Especialidad, professionalId: string) {
-    return request(app.getHttpServer())
+  async function start(
+    journeyId: string,
+    especialidad: Especialidad,
+    professionalId: string,
+    status?: number,
+  ) {
+    const pending = request(app.getHttpServer())
       .post(`/journeys/${journeyId}/attentions`)
-      .send({ specialty: especialidad, professionalId });
+      .set(await authAs(professionalId))
+      .send({ specialty: especialidad });
+
+    return status === undefined ? pending : pending.expect(status);
   }
 
-  async function finalize(attentionId: string) {
+  async function finalize(attentionId: string, professionalId: string) {
     return request(app.getHttpServer())
       .patch(`/attentions/${attentionId}/finalize`)
+      .set(await authAs(professionalId))
       .send({ state: 'Finalizada' })
       .expect(200);
   }
@@ -54,6 +72,7 @@ describe('circuit foundation HTTP API', () => {
   async function readJourney(applicantId: string) {
     const response = await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ applicantId })
       .expect(200);
     return response.body as {
@@ -95,7 +114,7 @@ describe('circuit foundation HTTP API', () => {
     expect(journey.derivations).toEqual([]);
     expect(journey.aptitude).toBeNull();
 
-    const queued = await request(app.getHttpServer()).get('/queue').expect(200);
+    const queued = await request(app.getHttpServer()).get('/queue').set(admin).expect(200);
     expect(
       queued.body.some(
         (entry: { applicantId: string }) => entry.applicantId === registered.applicant.id,
@@ -107,13 +126,14 @@ describe('circuit foundation HTTP API', () => {
       registered.journey.id,
       Especialidad.CLINICA_MEDICA,
       professional.id,
-    ).expect(201);
+      201,
+    );
     const clinicalEvaluation = journey.evaluations.find(
       (evaluation) => evaluation.specialty === Especialidad.CLINICA_MEDICA,
     );
     expect(started.body.evaluationId).toBe(clinicalEvaluation?.id);
 
-    const queueAfterStart = await request(app.getHttpServer()).get('/queue').expect(200);
+    const queueAfterStart = await request(app.getHttpServer()).get('/queue').set(admin).expect(200);
     expect(
       queueAfterStart.body.some(
         (entry: { applicantId: string }) => entry.applicantId === registered.applicant.id,
@@ -141,32 +161,30 @@ describe('circuit foundation HTTP API', () => {
       Especialidad.PSICOLOGIA,
     );
 
-    const first = await start(
-      registered.journey.id,
-      Especialidad.CLINICA_MEDICA,
-      clinical.id,
-    ).expect(201);
-    await finalize(first.body.attentionId);
+    const first = await start(registered.journey.id, Especialidad.CLINICA_MEDICA, clinical.id, 201);
+    await finalize(first.body.attentionId, clinical.id);
     let journey = await readJourney(registered.applicant.id);
     expect(journey.journey.state).toBe('En proceso');
     expect(journey.journey.derivedState).toBe('Esperando llamado');
 
     await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/attentions`)
-      .send({ specialty: 'Clinical', professionalId: clinical.id })
+      .set(await authAs(clinical.id))
+      .send({ specialty: 'Clinical' })
       .expect(400);
 
     const second = await start(
       registered.journey.id,
       Especialidad.BIOQUIMICA,
       biochemistry.id,
-    ).expect(201);
+      201,
+    );
     journey = await readJourney(registered.applicant.id);
     expect(journey.journey.state).toBe('En proceso');
     expect(journey.journey.derivedState).toBeNull();
 
-    await start(registered.journey.id, Especialidad.PSICOLOGIA, psychology.id).expect(409);
-    await finalize(second.body.attentionId);
+    await start(registered.journey.id, Especialidad.PSICOLOGIA, psychology.id, 409);
+    await finalize(second.body.attentionId, biochemistry.id);
 
     const psychologyEvaluation = await prisma.client.evaluacion.findFirstOrThrow({
       where: {
@@ -178,7 +196,7 @@ describe('circuit foundation HTTP API', () => {
       where: { id: psychologyEvaluation.id },
       data: { estado: EvaluacionEstado.COMPLETA },
     });
-    await start(registered.journey.id, Especialidad.PSICOLOGIA, psychology.id).expect(409);
+    await start(registered.journey.id, Especialidad.PSICOLOGIA, psychology.id, 409);
 
     const closed = await registerApplicant('E2E Circuit Closed');
     await prisma.client.recorrido.update({
@@ -186,7 +204,7 @@ describe('circuit foundation HTTP API', () => {
       data: { estado: RecorridoEstado.CIERRE_FINAL },
     });
     const closedProfessional = await createProfessional('Dr. Closed', Especialidad.CLINICA_MEDICA);
-    await start(closed.journey.id, Especialidad.CLINICA_MEDICA, closedProfessional.id).expect(409);
+    await start(closed.journey.id, Especialidad.CLINICA_MEDICA, closedProfessional.id, 409);
   });
 
   it('serializes concurrent same-specialty starts into one active attention', async () => {
@@ -229,12 +247,8 @@ describe('circuit foundation HTTP API', () => {
       Especialidad.BIOQUIMICA,
     );
 
-    const first = await start(
-      registered.journey.id,
-      Especialidad.CLINICA_MEDICA,
-      clinical.id,
-    ).expect(201);
-    await finalize(first.body.attentionId);
+    const first = await start(registered.journey.id, Especialidad.CLINICA_MEDICA, clinical.id, 201);
+    await finalize(first.body.attentionId, clinical.id);
 
     const waitingForCall = await readJourney(registered.applicant.id);
     expect(waitingForCall.journey.state).toBe('En proceso');
@@ -245,7 +259,7 @@ describe('circuit foundation HTTP API', () => {
     });
     expect(persisted.estado).toBe(RecorridoEstado.EN_PROCESO);
 
-    await start(registered.journey.id, Especialidad.BIOQUIMICA, biochemistry.id).expect(201);
+    await start(registered.journey.id, Especialidad.BIOQUIMICA, biochemistry.id, 201);
     const called = await readJourney(registered.applicant.id);
     expect(called.journey.derivedState).toBeNull();
   });

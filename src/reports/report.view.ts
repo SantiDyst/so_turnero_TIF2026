@@ -1,6 +1,7 @@
 import { Especialidad, InformeEstado, ResultadoEspecialidad } from '@prisma/client';
 
 import { InformeState, SUPPORTED_SPECIALTIES, toInformeState } from '../shared/state-vocabulary';
+import { REPORT_SCHEMA_VERSION, ReportFieldDefinition, reportFieldsFor } from './report-fields';
 
 export const ADMISSION_ORIGIN_AREA = 'Admisión';
 
@@ -18,6 +19,8 @@ export interface ReportProfessionalView {
 export interface ReportRecordSource {
   id: string;
   observaciones: string;
+  datos: unknown;
+  schemaVersion: number;
   estado: InformeEstado;
   updatedAt: Date;
   profesional: ReportProfessionalView | null;
@@ -51,6 +54,9 @@ export interface ReportEntryView {
     professional: ReportProfessionalView | null;
   };
   observations: string | null;
+  data: Record<string, unknown> | null;
+  fields: ReportFieldDefinition[];
+  schemaVersion: number;
   specialtyResult: ResultadoEspecialidad | null;
   finalAptitude: ResultadoEspecialidad | null;
   updatedAt: Date | null;
@@ -82,9 +88,12 @@ export function buildReportEntry(source: ReportEntrySource): ReportEntryView {
       professional: professional ? { id: professional.id, nombre: professional.nombre } : null,
     },
     observations: report?.observaciones ?? null,
+    data: report?.datos ? (report.datos as Record<string, unknown>) : null,
+    fields: reportFieldsFor(source.specialty),
+    schemaVersion: report?.schemaVersion ?? REPORT_SCHEMA_VERSION,
     specialtyResult:
       source.specialty === Especialidad.BIOQUIMICA ? null : (source.evaluation?.resultado ?? null),
-    finalAptitude: source.finalAptitude,
+    finalAptitude: source.finalAptitude ?? null,
     updatedAt: report?.updatedAt ?? null,
   };
 }

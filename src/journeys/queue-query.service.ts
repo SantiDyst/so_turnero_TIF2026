@@ -1,5 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AtencionEstado, EvaluacionEstado, RecorridoEstado } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AtencionEstado, Especialidad, EvaluacionEstado, RecorridoEstado } from '@prisma/client';
 
 import { buildCertificateView } from '../certificates/certificate.view';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,11 +19,37 @@ import {
   toReservationState,
 } from '../shared/state-vocabulary';
 
+export interface ProfessionalViewer {
+  professionalId: string;
+  specialty: Especialidad;
+}
+
 @Injectable()
 export class QueueQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listQueue() {
+  async listQueue(specialty?: Especialidad) {
+    if (specialty) {
+      const journeys = await this.prisma.client.recorrido.findMany({
+        where: {
+          estado: { in: [RecorridoEstado.EN_ESPERA, RecorridoEstado.EN_PROCESO] },
+          evaluaciones: { some: { especialidad: specialty, estado: EvaluacionEstado.PENDIENTE } },
+        },
+        orderBy: { queuedAt: 'asc' },
+        select: {
+          postulanteId: true,
+          numeroAtencion: true,
+          estado: true,
+          queuedAt: true,
+          empresa: true,
+          puesto: true,
+          postulante: { select: { nombre: true, apellido: true } },
+        },
+      });
+
+      return journeys.map((journey) => this.toQueueEntry(journey));
+    }
+
     const journeys = await this.prisma.client.recorrido.findMany({
       where: { estado: RecorridoEstado.EN_ESPERA },
       orderBy: { queuedAt: 'asc' },
@@ -27,15 +58,33 @@ export class QueueQueryService {
         numeroAtencion: true,
         estado: true,
         queuedAt: true,
+        empresa: true,
+        puesto: true,
+        postulante: { select: { nombre: true, apellido: true } },
       },
     });
 
-    return journeys.map((journey) => ({
+    return journeys.map((journey) => this.toQueueEntry(journey));
+  }
+
+  private toQueueEntry(journey: {
+    postulanteId: string;
+    numeroAtencion: string;
+    estado: RecorridoEstado;
+    queuedAt: Date;
+    empresa: string | null;
+    puesto: string | null;
+    postulante: { nombre: string; apellido: string };
+  }) {
+    return {
       applicantId: journey.postulanteId,
+      applicant: journey.postulante,
       attentionNumber: journey.numeroAtencion,
       journeyState: toJourneyState(journey.estado),
       queuedAt: journey.queuedAt,
-    }));
+      empresa: journey.empresa,
+      puesto: journey.puesto,
+    };
   }
 
   async listOverview() {
@@ -47,8 +96,11 @@ export class QueueQueryService {
         numeroAtencion: true,
         estado: true,
         queuedAt: true,
+        empresa: true,
+        puesto: true,
         motivoAnulacion: true,
         anuladaAt: true,
+        anuladoPor: { select: { id: true, nombre: true } },
         postulante: { select: { id: true, nombre: true, apellido: true } },
         atenciones: { select: { estado: true, especialidad: true } },
         evaluaciones: {
@@ -81,10 +133,15 @@ export class QueueQueryService {
         state: toJourneyState(journey.estado),
         derivedState,
         queuedAt: journey.queuedAt,
+        empresa: journey.empresa,
+        puesto: journey.puesto,
         activeSpecialty: activeAttention?.especialidad ?? null,
         attentionCount: journey.atenciones.length,
         annulledReason: journey.motivoAnulacion,
         annulledAt: journey.anuladaAt,
+        annulledBy: journey.anuladoPor
+          ? { id: journey.anuladoPor.id, name: journey.anuladoPor.nombre }
+          : null,
         evaluations: {
           total: journey.evaluaciones.length,
           complete: journey.evaluaciones.filter(
@@ -103,7 +160,7 @@ export class QueueQueryService {
     });
   }
 
-  async findJourney(applicantId?: string, attentionNumber?: string) {
+  async findJourney(applicantId?: string, attentionNumber?: string, viewer?: ProfessionalViewer) {
     if (Boolean(applicantId) === Boolean(attentionNumber)) {
       throw new BadRequestException('Provide exactly one of applicantId or attentionNumber.');
     }
@@ -112,6 +169,7 @@ export class QueueQueryService {
       where: applicantId ? { postulanteId: applicantId } : { numeroAtencion: attentionNumber! },
       include: {
         postulante: true,
+        anuladoPor: { select: { id: true, nombre: true } },
         atenciones: {
           orderBy: { createdAt: 'asc' },
           include: { profesional: true },
@@ -144,6 +202,10 @@ export class QueueQueryService {
 
     if (!journey) {
       throw new NotFoundException('Journey not found.');
+    }
+
+    if (viewer) {
+      this.assertVisibleToProfessional(journey, viewer);
     }
 
     const reservations = await this.prisma.client.reserva.findMany({
@@ -181,8 +243,13 @@ export class QueueQueryService {
         state: toJourneyState(journey.estado),
         derivedState,
         queuedAt: journey.queuedAt,
+        empresa: journey.empresa,
+        puesto: journey.puesto,
         annulledReason: journey.motivoAnulacion,
         annulledAt: journey.anuladaAt,
+        annulledBy: journey.anuladoPor
+          ? { id: journey.anuladoPor.id, name: journey.anuladoPor.nombre }
+          : null,
       },
       attentions: journey.atenciones.map((attention) => ({
         id: attention.id,
@@ -264,5 +331,26 @@ export class QueueQueryService {
           })
         : null,
     };
+  }
+
+  private assertVisibleToProfessional(
+    journey: {
+      atenciones: { profesionalId: string }[];
+      evaluaciones: { especialidad: Especialidad; estado: EvaluacionEstado }[];
+    },
+    viewer: ProfessionalViewer,
+  ): void {
+    const ownsAttention = journey.atenciones.some(
+      (attention) => attention.profesionalId === viewer.professionalId,
+    );
+    const pendingForSpecialty = journey.evaluaciones.some(
+      (evaluation) =>
+        evaluation.especialidad === viewer.specialty &&
+        evaluation.estado === EvaluacionEstado.PENDIENTE,
+    );
+
+    if (!ownsAttention && !pendingForSpecialty) {
+      throw new ForbiddenException('The journey is not part of your queue.');
+    }
   }
 }

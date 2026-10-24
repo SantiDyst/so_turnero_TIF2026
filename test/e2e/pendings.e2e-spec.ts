@@ -5,6 +5,11 @@ import request from 'supertest';
 import { createApp } from '../../src/app.factory';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { assertIsolatedSchema } from '../support/runtime';
+import {
+  adminSessionHeaders,
+  professionalSessions,
+  type SessionHeaders,
+} from '../support/sessions';
 
 interface Registered {
   applicant: { id: string };
@@ -45,12 +50,15 @@ interface ReadJourney {
 
 describe('pendings, evaluation gate, and recitations HTTP API', () => {
   const prisma = new PrismaService();
+  const authAs = professionalSessions(prisma);
   let app: INestApplication;
+  let admin: SessionHeaders;
 
   beforeAll(async () => {
     await assertIsolatedSchema();
     app = await createApp();
     await app.init();
+    admin = await adminSessionHeaders(prisma);
   });
 
   afterAll(async () => {
@@ -61,15 +69,19 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
   async function registerApplicant(name: string): Promise<Registered> {
     const response = await request(app.getHttpServer())
       .post('/applicants')
+      .set(admin)
       .send({ nombre: name, apellido: 'Pending', dni: `${name}-dni` })
       .expect(201);
     return response.body as Registered;
   }
 
   async function createProfessional(name: string, specialty: Especialidad) {
-    return prisma.client.profesional.create({
+    const professional = await prisma.client.profesional.create({
       data: { nombre: name, especialidad: specialty },
     });
+    await authAs(professional.id);
+
+    return professional;
   }
 
   async function startAttention(
@@ -79,41 +91,55 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
   ): Promise<string> {
     const response = await request(app.getHttpServer())
       .post(`/journeys/${journeyId}/attentions`)
-      .send({ specialty, professionalId })
+      .set(authAs.headers(professionalId))
+      .send({ specialty })
       .expect(201);
     return response.body.attentionId as string;
   }
 
-  async function finalizeAttention(attentionId: string): Promise<void> {
+  async function finalizeAttention(attentionId: string, professionalId: string): Promise<void> {
     await request(app.getHttpServer())
       .patch(`/attentions/${attentionId}/finalize`)
+      .set(authAs.headers(professionalId))
       .send({ state: 'Finalizada' })
       .expect(200);
   }
 
-  function createPending(attentionId: string, motivo: string, fechaLimite?: string) {
+  function createPending(
+    attentionId: string,
+    professionalId: string,
+    motivo: string,
+    fechaLimite?: string,
+  ) {
     return request(app.getHttpServer())
       .post(`/attentions/${attentionId}/pendings`)
+      .set(authAs.headers(professionalId))
       .send(fechaLimite ? { motivo, fechaLimite } : { motivo });
   }
 
-  function resolvePending(pendingId: string) {
-    return request(app.getHttpServer()).patch(`/pendings/${pendingId}/resolve`);
+  function resolvePending(pendingId: string, professionalId: string) {
+    return request(app.getHttpServer())
+      .patch(`/pendings/${pendingId}/resolve`)
+      .set(authAs.headers(professionalId));
   }
 
-  function setResult(evaluationId: string, resultado: string) {
+  function setResult(evaluationId: string, resultado: string, professionalId: string) {
     return request(app.getHttpServer())
       .patch(`/evaluations/${evaluationId}/result`)
+      .set(authAs.headers(professionalId))
       .send({ resultado });
   }
 
-  function completeEvaluation(evaluationId: string) {
-    return request(app.getHttpServer()).patch(`/evaluations/${evaluationId}/complete`);
+  function completeEvaluation(evaluationId: string, professionalId: string) {
+    return request(app.getHttpServer())
+      .patch(`/evaluations/${evaluationId}/complete`)
+      .set(authAs.headers(professionalId));
   }
 
   async function readJourney(applicantId: string): Promise<ReadJourney> {
     const response = await request(app.getHttpServer())
       .get('/journeys')
+      .set(admin)
       .query({ applicantId })
       .expect(200);
     return response.body as ReadJourney;
@@ -140,10 +166,13 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
 
     const first = await createPending(
       attentionId,
+      professional.id,
       'Retrieve lab results',
       '2026-11-10T10:00:00.000Z',
     ).expect(201);
-    const second = await createPending(attentionId, 'Repeat measurement').expect(201);
+    const second = await createPending(attentionId, professional.id, 'Repeat measurement').expect(
+      201,
+    );
 
     expect(first.body).toEqual(
       expect.objectContaining({
@@ -157,7 +186,7 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
     expect(second.body.evaluationId).toBe(evaluation.id);
     expect(second.body.resolvedAt).toBeNull();
 
-    const resolved = await resolvePending(first.body.id).expect(200);
+    const resolved = await resolvePending(first.body.id, professional.id).expect(200);
     expect(resolved.body).toEqual(
       expect.objectContaining({
         id: first.body.id,
@@ -167,8 +196,8 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
     );
     expect(resolved.body.resolvedAt).toBeTruthy();
 
-    await resolvePending(first.body.id).expect(409);
-    await resolvePending('00000000-0000-4000-8000-000000000000').expect(404);
+    await resolvePending(first.body.id, professional.id).expect(409);
+    await resolvePending('00000000-0000-4000-8000-000000000000', professional.id).expect(404);
 
     const journey = await readJourney(registered.applicant.id);
     const pendings = journey.pendings.filter((pending) => pending.evaluationId === evaluation.id);
@@ -189,7 +218,9 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       Especialidad.CLINICA_MEDICA,
       clinical.id,
     );
-    const pending = await createPending(attentionId, 'Repeat blood pressure').expect(201);
+    const pending = await createPending(attentionId, clinical.id, 'Repeat blood pressure').expect(
+      201,
+    );
 
     const before = await readJourney(registered.applicant.id);
     const recitationProfessional = await createProfessional(
@@ -292,7 +323,11 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       Especialidad.CLINICA_MEDICA,
       otherClinical.id,
     );
-    const otherPending = await createPending(otherAttention, 'Other journey pending').expect(201);
+    const otherPending = await createPending(
+      otherAttention,
+      otherClinical.id,
+      'Other journey pending',
+    ).expect(201);
 
     await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/recitations`)
@@ -314,7 +349,7 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       })
       .expect(404);
 
-    await resolvePending(pending.body.id).expect(200);
+    await resolvePending(pending.body.id, clinical.id).expect(200);
     await request(app.getHttpServer())
       .post(`/journeys/${registered.journey.id}/recitations`)
       .send({
@@ -342,8 +377,8 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       Especialidad.CLINICA_MEDICA,
       professional.id,
     );
-    await createPending(attentionId, 'Awaiting external study').expect(201);
-    await finalizeAttention(attentionId);
+    await createPending(attentionId, professional.id, 'Awaiting external study').expect(201);
+    await finalizeAttention(attentionId, professional.id);
 
     const journey = await readJourney(registered.applicant.id);
     expect(journey.attentions.find((item) => item.id === attentionId)?.state).toBe('Finalizada');
@@ -354,7 +389,7 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       }),
     );
 
-    await completeEvaluation(evaluation.id).expect(409);
+    await completeEvaluation(evaluation.id, professional.id).expect(409);
   });
 
   it.each([Especialidad.CLINICA_MEDICA, Especialidad.PSICOLOGIA])(
@@ -364,16 +399,22 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       const evaluation = await evaluationFor(registered.journey.id, specialty);
       const professional = await createProfessional(`Dr. Gate ${specialty}`, specialty);
       const attentionId = await startAttention(registered.journey.id, specialty, professional.id);
-      const pending = await createPending(attentionId, `Pending for ${specialty}`).expect(201);
+      const pending = await createPending(
+        attentionId,
+        professional.id,
+        `Pending for ${specialty}`,
+      ).expect(201);
 
-      await completeEvaluation(evaluation.id).expect(409);
+      await completeEvaluation(evaluation.id, professional.id).expect(409);
 
-      await resolvePending(pending.body.id).expect(200);
-      await completeEvaluation(evaluation.id).expect(409);
+      await resolvePending(pending.body.id, professional.id).expect(200);
+      await completeEvaluation(evaluation.id, professional.id).expect(409);
 
-      await setResult(evaluation.id, 'PENDIENTE').expect(400);
+      await setResult(evaluation.id, 'PENDIENTE', professional.id).expect(400);
 
-      const withResult = await setResult(evaluation.id, 'APTO_CONDICIONAL').expect(200);
+      const withResult = await setResult(evaluation.id, 'APTO_CONDICIONAL', professional.id).expect(
+        200,
+      );
       expect(withResult.body).toEqual(
         expect.objectContaining({
           id: evaluation.id,
@@ -383,7 +424,7 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
         }),
       );
 
-      const completed = await completeEvaluation(evaluation.id).expect(200);
+      const completed = await completeEvaluation(evaluation.id, professional.id).expect(200);
       expect(completed.body).toEqual(
         expect.objectContaining({
           id: evaluation.id,
@@ -394,7 +435,7 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       );
       expect(completed.body.completedAt).toBeTruthy();
 
-      await completeEvaluation(evaluation.id).expect(409);
+      await completeEvaluation(evaluation.id, professional.id).expect(409);
 
       const journey = await readJourney(registered.applicant.id);
       expect(journey.evaluations.find((item) => item.id === evaluation.id)).toEqual(
@@ -416,12 +457,16 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
       Especialidad.BIOQUIMICA,
       professional.id,
     );
-    const pending = await createPending(attentionId, 'Pending biochemistry study').expect(201);
+    const pending = await createPending(
+      attentionId,
+      professional.id,
+      'Pending biochemistry study',
+    ).expect(201);
 
-    await resolvePending(pending.body.id).expect(200);
-    await setResult(evaluation.id, 'APTO_PLENO').expect(400);
+    await resolvePending(pending.body.id, professional.id).expect(200);
+    await setResult(evaluation.id, 'APTO_PLENO', professional.id).expect(400);
 
-    const completed = await completeEvaluation(evaluation.id).expect(200);
+    const completed = await completeEvaluation(evaluation.id, professional.id).expect(200);
     expect(completed.body).toEqual(
       expect.objectContaining({
         id: evaluation.id,
@@ -434,6 +479,12 @@ describe('pendings, evaluation gate, and recitations HTTP API', () => {
   });
 
   it('rejects a pending creation for a missing attention', async () => {
-    await createPending('00000000-0000-4000-8000-000000000000', 'Missing attention').expect(404);
+    const professional = await createProfessional('Dr. Missing Attention', Especialidad.BIOQUIMICA);
+
+    await createPending(
+      '00000000-0000-4000-8000-000000000000',
+      professional.id,
+      'Missing attention',
+    ).expect(404);
   });
 });

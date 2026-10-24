@@ -21,6 +21,7 @@ import {
   toJourneyState,
   toProfessionalAvailability,
 } from '../../src/shared/state-vocabulary';
+import { attentionAccessStub, professionalUser } from '../support/actors';
 
 describe('validation and state vocabulary', () => {
   it('reports every missing registration field', async () => {
@@ -34,13 +35,21 @@ describe('validation and state vocabulary', () => {
   });
 
   it('accepts only Finalizada or Pendiente for finalization', async () => {
-    const controller = new AttentionsController({ finalize: jest.fn(), start: jest.fn() } as never);
-
-    expect(() => controller.finalize('attention', { state: AttentionState.inAttention })).toThrow(
-      BadRequestException,
+    const controller = new AttentionsController(
+      { finalize: jest.fn(), start: jest.fn() } as never,
+      attentionAccessStub() as never,
     );
-    expect(controller.finalize('attention', { state: AttentionState.finalized })).toBeUndefined();
-    expect(controller.finalize('attention', { state: AttentionState.pending })).toBeUndefined();
+    const user = professionalUser();
+
+    expect(() =>
+      controller.finalize('attention', { state: AttentionState.inAttention }, user),
+    ).toThrow(BadRequestException);
+    await expect(
+      controller.finalize('attention', { state: AttentionState.finalized }, user),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.finalize('attention', { state: AttentionState.pending }, user),
+    ).resolves.toBeUndefined();
   });
 
   it('keeps journey, attention, and professional vocabulary distinct', () => {

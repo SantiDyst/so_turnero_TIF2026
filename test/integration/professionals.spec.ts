@@ -51,12 +51,14 @@ describe('professional listing read model', () => {
       name: bio.nombre,
       specialty: Especialidad.BIOQUIMICA,
       availability: 'Disponible',
+      accountLinked: false,
     });
     expect(listed[1]).toEqual({
       id: clinical.id,
       name: clinical.nombre,
       specialty: Especialidad.CLINICA_MEDICA,
       availability: 'Ocupado',
+      accountLinked: false,
     });
   });
 

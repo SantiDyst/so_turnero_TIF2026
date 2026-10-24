@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import {
   AtencionEstado,
   DisponibilidadProfesional,
@@ -16,6 +16,7 @@ import {
   prismaErrorCode,
   rethrowPrismaConflict,
 } from '../../src/shared/prisma-error.mapper';
+import { attentionAccessStub, professionalUser } from '../support/actors';
 import {
   AptitudeState,
   AttentionState,
@@ -75,23 +76,26 @@ describe('circuit vocabulary', () => {
 
   it('rejects invalid specialties before starting an attention', () => {
     const start = jest.fn().mockReturnValue({ ok: true });
-    const controller = new AttentionsController({ start, finalize: jest.fn() } as never);
+    const controller = new AttentionsController(
+      { start, finalize: jest.fn() } as never,
+      attentionAccessStub() as never,
+    );
+    const user = professionalUser({ specialty: Especialidad.PSICOLOGIA });
 
+    expect(() => controller.start('journey', { specialty: 'Clinical' }, user)).toThrow(
+      BadRequestException,
+    );
     expect(() =>
-      controller.start('journey', { specialty: 'Clinical', professionalId: 'professional' }),
-    ).toThrow(BadRequestException);
-    expect(() =>
-      controller.start('journey', { specialty: 'PSICOLOGIA', professionalId: '' }),
-    ).toThrow(BadRequestException);
-    expect(
-      controller.start('journey', {
-        specialty: 'PSICOLOGIA',
-        professionalId: 'professional',
-      }),
-    ).toEqual({ ok: true });
+      controller.start(
+        'journey',
+        { specialty: 'PSICOLOGIA' },
+        professionalUser({ profesionalId: null, specialty: null }),
+      ),
+    ).toThrow(ForbiddenException);
+    expect(controller.start('journey', { specialty: 'PSICOLOGIA' }, user)).toEqual({ ok: true });
     expect(start).toHaveBeenCalledWith('journey', {
       specialty: 'PSICOLOGIA',
-      professionalId: 'professional',
+      professionalId: 'professional-1',
     });
   });
 });

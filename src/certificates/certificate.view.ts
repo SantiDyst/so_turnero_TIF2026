@@ -16,6 +16,7 @@ export interface CertificateProfessionalView {
 export interface CertificateRecordSource {
   id: string;
   identificador: string;
+  token: string;
   aptitudFinal: ResultadoEspecialidad;
   emitidoAt: Date;
   profesional: CertificateProfessionalView | null;
@@ -23,6 +24,16 @@ export interface CertificateRecordSource {
 
 export interface CertificateView {
   id: string;
+  identifier: string;
+  attentionNumber: string;
+  applicant: CertificateApplicantView;
+  finalAptitude: (typeof AptitudeState)[keyof typeof AptitudeState];
+  issuedAt: Date;
+  responsibleProfessional: CertificateProfessionalView | null;
+  shareToken: string;
+}
+
+export interface PublicCertificateView {
   identifier: string;
   attentionNumber: string;
   applicant: CertificateApplicantView;
@@ -53,5 +64,23 @@ export function buildCertificateView(source: {
           nombre: source.certificate.profesional.nombre,
         }
       : null,
+    shareToken: source.certificate.token,
+  };
+}
+
+export function buildPublicCertificateView(source: {
+  certificate: CertificateRecordSource;
+  attentionNumber: string;
+  applicant: CertificateApplicantView;
+}): PublicCertificateView {
+  const view = buildCertificateView(source);
+
+  return {
+    identifier: view.identifier,
+    attentionNumber: view.attentionNumber,
+    applicant: view.applicant,
+    finalAptitude: view.finalAptitude,
+    issuedAt: view.issuedAt,
+    responsibleProfessional: view.responsibleProfessional,
   };
 }

@@ -56,13 +56,50 @@ enum InformeEstado {
   COMPLETO
 }
 
+enum RolUsuario {
+  ADMIN
+  PROFESIONAL
+  USER
+}
+
+model Usuario {
+  id           String      @id @default(uuid())
+  nombre       String
+  email        String      @unique
+  passwordHash String
+  rol          RolUsuario
+  activo       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  sesiones     Sesion[]
+  postulante   Postulante?
+  profesional  Profesional?
+  anulaciones  Recorrido[]
+}
+
+model Sesion {
+  id        String    @id @default(uuid())
+  usuarioId String
+  tokenHash String    @unique
+  userAgent String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+}
+
 model Postulante {
   id         String     @id @default(uuid())
   nombre     String
   apellido   String
-  dni        String
+  dni        String   @unique
+  email      String?
+  usuarioId  String?    @unique
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   recorrido  Recorrido?
   atenciones Atencion[] @relation("AtencionesPostulante")
 }
@@ -72,18 +109,24 @@ model Recorrido {
   postulanteId     String           @unique
   numeroAtencion   String           @unique
   estado           RecorridoEstado  @default(EN_ESPERA)
+  empresa          String?
+  puesto           String?
   queuedAt         DateTime         @default(now())
   anuladaAt        DateTime?
   motivoAnulacion  String?
+  anuladoPorId     String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   postulante       Postulante       @relation(fields: [postulanteId], references: [id], onDelete: Cascade)
+  anuladoPor       Usuario?         @relation(fields: [anuladoPorId], references: [id], onDelete: SetNull)
   atenciones       Atencion[]
   evaluaciones     Evaluacion[]
   recitaciones     Recitacion[]
   derivaciones     Derivacion[]
   resultadoAptitud ResultadoAptitud?
   certificado      Certificado?
+
+  @@index([anuladoPorId])
 }
 
 model Atencion {
@@ -122,8 +165,10 @@ model Profesional {
   nombre         String
   especialidad   Especialidad
   disponibilidad DisponibilidadProfesional @default(DISPONIBLE)
+  usuarioId      String?                   @unique
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
+  usuario        Usuario?                  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   atenciones     Atencion[]
   reservas       Reserva[]
   informes       Informe[]
@@ -240,6 +285,8 @@ model Informe {
   atencionId    String?
   profesionalId String?
   observaciones String        @default("")
+  datos         Json?
+  schemaVersion Int           @default(1)
   estado        InformeEstado @default(PENDIENTE)
   completadoAt  DateTime?
   createdAt     DateTime      @default(now())
@@ -256,6 +303,7 @@ model Certificado {
   id            String                @id @default(uuid())
   recorridoId   String                @unique
   identificador String                @unique
+  token         String                @unique
   aptitudFinal  ResultadoEspecialidad
   profesionalId String?
   emitidoAt     DateTime              @default(now())
