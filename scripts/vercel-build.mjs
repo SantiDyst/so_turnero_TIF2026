@@ -12,4 +12,5 @@ if (process.env.VERCEL_ENV === 'production') {
   run('npx', ['prisma', 'migrate', 'deploy']);
 }
 
+run('node', ['scripts/copy-swagger-assets.mjs']);
 run('npx', ['nest', 'build']);

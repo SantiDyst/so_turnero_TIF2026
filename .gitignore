@@ -52,3 +52,6 @@ Thumbs.db
 # Figma design references
 docs/design/*.png
 docs/design/exports/
+
+# Generated Swagger UI assets served by Vercel
+public/docs/
