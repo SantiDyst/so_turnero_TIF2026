@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
+  AtencionEstado,
+  DisponibilidadProfesional,
   Especialidad,
   EvaluacionEstado,
   ReservaEstado,
@@ -48,7 +50,12 @@ function completionTransaction(row: AnyRecord, openPendings = 0, attentions = 1)
   return {
     $queryRaw: jest.fn().mockResolvedValue([row]),
     pendiente: { count: jest.fn().mockResolvedValue(openPendings) },
-    atencion: { count: jest.fn().mockResolvedValue(attentions) },
+    atencion: {
+      count: jest.fn().mockResolvedValue(attentions),
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn(),
+    },
+    profesional: { update: jest.fn() },
     evaluacion: {
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(async ({ data }: { data: AnyRecord }) => ({ ...row, ...data })),
@@ -265,6 +272,27 @@ describe('evaluation completion gate', () => {
 
     expect(completed.state).toBe('COMPLETA');
     expect(completed.result).toBe(ResultadoEspecialidad.APTO_PLENO);
+  });
+
+  it('finalizes the active attention and releases the professional on completion', async () => {
+    const transaction = completionTransaction(
+      evaluationRow({ resultado: ResultadoEspecialidad.APTO_PLENO }),
+    );
+    transaction.atencion.findMany.mockResolvedValue([
+      { id: 'attention-1', profesionalId: 'professional-1' },
+    ]);
+    const service = new EvaluationsService(makePrisma(transaction));
+
+    await service.complete('evaluation-1');
+
+    expect(transaction.atencion.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['attention-1'] } },
+      data: { estado: AtencionEstado.FINALIZADA, endedAt: expect.any(Date) },
+    });
+    expect(transaction.profesional.update).toHaveBeenCalledWith({
+      where: { id: 'professional-1' },
+      data: { disponibilidad: DisponibilidadProfesional.DISPONIBLE },
+    });
   });
 });
 

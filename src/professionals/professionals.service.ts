@@ -3,6 +3,16 @@ import { DisponibilidadProfesional, Especialidad, Prisma } from '@prisma/client'
 
 import { ProfessionalAvailability } from '../shared/state-vocabulary';
 
+export async function releaseProfessional(
+  transaction: Prisma.TransactionClient,
+  professionalId: string,
+): Promise<void> {
+  await transaction.profesional.update({
+    where: { id: professionalId },
+    data: { disponibilidad: DisponibilidadProfesional.DISPONIBLE },
+  });
+}
+
 export interface LockedProfessional {
   id: string;
   availability: string;
@@ -42,9 +52,6 @@ export class ProfessionalsService {
     transaction: Prisma.TransactionClient,
     professionalId: string,
   ): Promise<void> {
-    await transaction.profesional.update({
-      where: { id: professionalId },
-      data: { disponibilidad: DisponibilidadProfesional.DISPONIBLE },
-    });
+    await releaseProfessional(transaction, professionalId);
   }
 }

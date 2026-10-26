@@ -143,6 +143,7 @@ export function renderClosurePanel({ journey, readiness, notice, onAction, readO
       flag('Resultado clínico presente', readiness.clinicalResultPresent),
       flag('Resultado psicológico presente', readiness.psychologicalResultPresent),
       flag('Aptitud almacenada', readiness.aptitudeStored),
+      flag('Sin atenciones activas', !readiness.activeAttention),
     ]),
     el('div', { class: 'row' }, [
       button(

@@ -8,6 +8,7 @@ import {
   Especialidad,
   EvaluacionEstado,
   Evaluacion,
+  AtencionEstado,
   Pendiente,
   Prisma,
   ResultadoEspecialidad,
@@ -15,6 +16,7 @@ import {
 
 import { storeJourneyAptitude } from '../aptitude/aptitude.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { releaseProfessional } from '../professionals/professionals.service';
 import { JourneyState, toEvaluationState } from '../shared/state-vocabulary';
 
 export interface CreatePendingInput {
@@ -165,17 +167,44 @@ export class EvaluationsService {
         );
       }
 
+      const completedAt = new Date();
       const completed = await transaction.evaluacion.update({
         where: { id: evaluation.id },
         data: {
           estado: EvaluacionEstado.COMPLETA,
-          completadaAt: new Date(),
+          completadaAt: completedAt,
         },
       });
+      await this.finalizeActiveAttentions(transaction, evaluation.id, completedAt);
       await storeJourneyAptitude(transaction, evaluation.recorridoId);
 
       return this.toEvaluationResponse(completed);
     });
+  }
+
+  private async finalizeActiveAttentions(
+    transaction: Prisma.TransactionClient,
+    evaluationId: string,
+    endedAt: Date,
+  ): Promise<void> {
+    const activeAttentions = await transaction.atencion.findMany({
+      where: { evaluacionId: evaluationId, estado: AtencionEstado.EN_ATENCION },
+      select: { id: true, profesionalId: true },
+    });
+
+    if (activeAttentions.length === 0) {
+      return;
+    }
+
+    await transaction.atencion.updateMany({
+      where: { id: { in: activeAttentions.map((attention) => attention.id) } },
+      data: { estado: AtencionEstado.FINALIZADA, endedAt },
+    });
+
+    const professionalIds = new Set(activeAttentions.map((attention) => attention.profesionalId));
+    for (const professionalId of professionalIds) {
+      await releaseProfessional(transaction, professionalId);
+    }
   }
 
   private async lockEvaluation(

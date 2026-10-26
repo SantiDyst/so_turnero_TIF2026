@@ -95,14 +95,15 @@ export class QueueQueryService {
       where: {
         profesionalId: viewer.professionalId,
         especialidad: viewer.specialty,
-        estado: AtencionEstado.FINALIZADA,
+        estado: { in: [AtencionEstado.EN_ATENCION, AtencionEstado.FINALIZADA] },
         evaluacion: { estado: EvaluacionEstado.COMPLETA },
         recorrido: { estado: { in: [RecorridoEstado.EN_PROCESO, RecorridoEstado.CIERRE_FINAL] } },
       },
-      orderBy: { endedAt: 'desc' },
+      orderBy: { startedAt: 'desc' },
       take: 20,
       select: {
         recorridoId: true,
+        estado: true,
         endedAt: true,
         recorrido: {
           select: {
@@ -129,7 +130,7 @@ export class QueueQueryService {
 
       entries.push({
         ...this.toQueueEntry(attention.recorrido),
-        status: 'completado',
+        status: attention.estado === AtencionEstado.EN_ATENCION ? 'en_atencion' : 'completado',
         completedAt: attention.endedAt,
       });
     }

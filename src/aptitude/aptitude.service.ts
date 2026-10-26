@@ -19,6 +19,7 @@ export interface ClosureReadiness {
   clinicalResultPresent: boolean;
   psychologicalResultPresent: boolean;
   aptitudeStored: boolean;
+  activeAttention: boolean;
   canClose: boolean;
 }
 
@@ -32,6 +33,7 @@ interface JourneySnapshot {
   id: string;
   estado: RecorridoEstado;
   evaluaciones: EvaluationSnapshot[];
+  atenciones: { id: string }[];
   resultadoAptitud: {
     resultadoClinico: ResultadoEspecialidad;
     resultadoPsicologico: ResultadoEspecialidad;
@@ -137,6 +139,10 @@ export class AptitudeService {
         evaluaciones: {
           select: { especialidad: true, estado: true, resultado: true },
         },
+        atenciones: {
+          where: { estado: AtencionEstado.EN_ATENCION },
+          select: { id: true },
+        },
         resultadoAptitud: {
           select: {
             resultadoClinico: true,
@@ -168,6 +174,10 @@ export class AptitudeService {
           evaluaciones: {
             select: { especialidad: true, estado: true, resultado: true },
           },
+          atenciones: {
+            where: { estado: AtencionEstado.EN_ATENCION },
+            select: { id: true },
+          },
           resultadoAptitud: {
             select: {
               resultadoClinico: true,
@@ -190,15 +200,11 @@ export class AptitudeService {
       }
 
       const readiness = this.buildReadiness(journey);
+      if (readiness.activeAttention) {
+        throw new ConflictException('Finalize the active attention before closing the journey.');
+      }
       if (!readiness.canClose) {
         throw new ConflictException('Journey does not meet the closure requirements.');
-      }
-
-      const activeAttentions = await transaction.atencion.count({
-        where: { recorridoId: journey.id, estado: AtencionEstado.EN_ATENCION },
-      });
-      if (activeAttentions > 0) {
-        throw new ConflictException('Finalize the active attention before closing the journey.');
       }
 
       const closed = await transaction.recorrido.update({
@@ -238,12 +244,14 @@ export class AptitudeService {
         evaluation.especialidad === PSYCHOLOGICAL_SPECIALTY && evaluation.resultado !== null,
     );
     const aptitudeStored = journey.resultadoAptitud !== null;
+    const activeAttention = journey.atenciones.length > 0;
     const canClose =
       journey.estado !== RecorridoEstado.CIERRE_FINAL &&
       allEvaluationsComplete &&
       clinicalResultPresent &&
       psychologicalResultPresent &&
-      aptitudeStored;
+      aptitudeStored &&
+      !activeAttention;
 
     return {
       journeyId: journey.id,
@@ -252,6 +260,7 @@ export class AptitudeService {
       clinicalResultPresent,
       psychologicalResultPresent,
       aptitudeStored,
+      activeAttention,
       canClose,
     };
   }

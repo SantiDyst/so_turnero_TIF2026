@@ -148,6 +148,11 @@ describe('first functional journey HTTP API', () => {
       .patch(`/attentions/${started.body.attentionId}/finalize`)
       .set(await authAs(professional.id))
       .send({ state: 'Finalizada' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(await authAs(professional.id))
+      .send({ state: 'Pendiente' })
       .expect(409);
   });
 

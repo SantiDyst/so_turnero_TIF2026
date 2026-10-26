@@ -156,7 +156,7 @@ export async function renderJourney(container, attentionNumber, ctx) {
 
     return el('p', {
       class: 'hint',
-      text: 'Completá la evaluación para poder finalizar la atención.',
+      text: 'Completá la evaluación y la atención se finaliza automáticamente.',
     });
   }
 
@@ -200,15 +200,18 @@ export async function renderJourney(container, attentionNumber, ctx) {
 
   function completionBlock(specialty, evaluation) {
     if (map.canComplete(journey, specialty)) {
+      const hasActive = Boolean(map.activeAttentionOf(journey, specialty));
+      const label = hasActive ? 'Completar y finalizar atención' : 'Completar evaluación';
+
       return el('div', { class: 'row' }, [
         button(
-          'Completar evaluación',
+          label,
           () =>
             mutate(
               specialty,
-              'Completando evaluación…',
+              hasActive ? 'Completando y finalizando…' : 'Completando evaluación…',
               () => api.completeEvaluation(evaluation.id),
-              'Evaluación completada.',
+              hasActive ? 'Evaluación completada y atención finalizada.' : 'Evaluación completada.',
             ),
           { class: 'primary' },
         ),

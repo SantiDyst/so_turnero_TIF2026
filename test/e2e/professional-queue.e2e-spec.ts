@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { Especialidad } from '@prisma/client';
+import { Especialidad, EvaluacionEstado } from '@prisma/client';
 import request from 'supertest';
 
 import { createApp } from '../../src/app.factory';
@@ -191,5 +191,96 @@ describe('professional queue and closure recovery', () => {
     );
 
     expect(entry).toEqual(expect.objectContaining({ status: 'pendiente' }));
+  });
+
+  it('finalizes the active attention when the evaluation is completed', async () => {
+    const psychology = await createProfessional(Especialidad.PSICOLOGIA);
+    const headers = await professionalSessionHeaders(prisma, psychology.id);
+    const registered = await register();
+
+    const started = await server()
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(headers)
+      .send({ specialty: Especialidad.PSICOLOGIA })
+      .expect(201);
+
+    await server()
+      .patch(`/evaluations/${started.body.evaluationId}/result`)
+      .set(headers)
+      .send({ resultado: 'APTO_PLENO' })
+      .expect(200);
+
+    await server()
+      .patch(`/evaluations/${started.body.evaluationId}/complete`)
+      .set(headers)
+      .expect(200);
+
+    const journey = await server()
+      .get('/journeys')
+      .set(headers)
+      .query({ attentionNumber: registered.journey.attentionNumber })
+      .expect(200);
+    const attention = (
+      journey.body.attentions as { id: string; state: string; endedAt: string }[]
+    ).find((candidate) => candidate.id === started.body.attentionId);
+
+    expect(attention).toEqual(expect.objectContaining({ state: 'Finalizada' }));
+    expect(attention?.endedAt).toBeTruthy();
+
+    const professionalRow = await prisma.client.profesional.findUniqueOrThrow({
+      where: { id: psychology.id },
+    });
+    expect(professionalRow.disponibilidad).toBe('DISPONIBLE');
+
+    await server()
+      .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(headers)
+      .send({ state: 'Finalizada' })
+      .expect(200);
+
+    const queue = await server().get('/queue').set(headers).expect(200);
+    const entry = (queue.body as { attentionNumber: string; status: string }[]).find(
+      (candidate) => candidate.attentionNumber === registered.journey.attentionNumber,
+    );
+    expect(entry).toEqual(expect.objectContaining({ status: 'completado' }));
+  });
+
+  it('keeps a completed evaluation with an active attention visible for recovery', async () => {
+    const psychology = await createProfessional(Especialidad.PSICOLOGIA);
+    const headers = await professionalSessionHeaders(prisma, psychology.id);
+    const registered = await register();
+
+    const started = await server()
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(headers)
+      .send({ specialty: Especialidad.PSICOLOGIA })
+      .expect(201);
+
+    await prisma.client.evaluacion.update({
+      where: { id: started.body.evaluationId },
+      data: {
+        estado: EvaluacionEstado.COMPLETA,
+        resultado: 'APTO_PLENO',
+        completadaAt: new Date(),
+      },
+    });
+
+    const queue = await server().get('/queue').set(headers).expect(200);
+    const entry = (queue.body as { attentionNumber: string; status: string }[]).find(
+      (candidate) => candidate.attentionNumber === registered.journey.attentionNumber,
+    );
+    expect(entry).toEqual(expect.objectContaining({ status: 'en_atencion' }));
+
+    await server()
+      .patch(`/attentions/${started.body.attentionId}/finalize`)
+      .set(headers)
+      .send({ state: 'Finalizada' })
+      .expect(200);
+
+    const recovered = await server().get('/queue').set(headers).expect(200);
+    const recoveredEntry = (recovered.body as { attentionNumber: string; status: string }[]).find(
+      (candidate) => candidate.attentionNumber === registered.journey.attentionNumber,
+    );
+    expect(recoveredEntry).toEqual(expect.objectContaining({ status: 'completado' }));
   });
 });

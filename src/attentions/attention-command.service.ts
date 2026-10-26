@@ -168,6 +168,28 @@ export class AttentionCommandService {
       const attention = await this.lockAttention(transaction, attentionId);
 
       if (attention.estado !== AttentionState.inAttention) {
+        if (attention.estado === toAttentionState(input.state)) {
+          const current = await transaction.atencion.findUniqueOrThrow({
+            where: { id: attention.id },
+            select: {
+              id: true,
+              estado: true,
+              endedAt: true,
+              recorrido: { select: { estado: true } },
+            },
+          });
+
+          return {
+            id: current.id,
+            state: toAttentionState(current.estado),
+            endedAt: current.endedAt,
+            journeyState: toJourneyState(current.recorrido.estado),
+            professionalAvailability: toProfessionalAvailability(
+              DisponibilidadProfesional.DISPONIBLE,
+            ),
+          };
+        }
+
         throw new ConflictException('Only an active attention can be finalized.');
       }
 
