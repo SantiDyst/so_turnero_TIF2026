@@ -118,6 +118,69 @@ function readOnlyView(fields, data, observations) {
   return nodes;
 }
 
+export function renderClosingForm({ specialty, report, evaluation, onSubmit, onError }) {
+  const fields = report?.fields ?? [];
+  const includeResult = map.canRecordResult(specialty);
+
+  const observations = el('textarea', {
+    rows: 3,
+    placeholder: 'Conclusión y recomendaciones',
+  });
+  observations.value = report?.observations ?? '';
+
+  const resultSelect = includeResult
+    ? select(
+        'result',
+        [['', '—'], ...map.RESULT_CODES.map((code) => [code, map.resultLabel(code)])],
+        evaluation?.result ?? '',
+      )
+    : null;
+
+  const body = el('div', {}, [
+    dataSection(fields, report?.data),
+    el('label', { class: 'field' }, [
+      el('span', { text: 'Conclusión / recomendación' }),
+      observations,
+    ]),
+  ]);
+
+  const save = button(
+    'Guardar y finalizar atención',
+    () => {
+      const text = observations.value.trim();
+
+      if (text.length === 0) {
+        onError('La conclusión es obligatoria para finalizar la atención.');
+        return;
+      }
+      if (resultSelect && resultSelect.value.length === 0) {
+        onError('Elegí un resultado antes de finalizar.');
+        return;
+      }
+
+      onSubmit({
+        observations: text,
+        datos: readData(fields, body),
+        result: resultSelect ? resultSelect.value : null,
+      });
+    },
+    { class: 'primary' },
+  );
+
+  return el('section', { class: 'closing' }, [
+    el('div', { class: 'card-head' }, [el('h3', { text: 'Cierre de atención' })]),
+    el('p', {
+      class: 'hint',
+      text: 'Un solo guardado: informe completo, resultado y finalización de la atención.',
+    }),
+    body,
+    el('div', { class: 'row', style: 'margin-top:10px' }, [
+      ...(resultSelect ? [resultSelect] : []),
+      save,
+    ]),
+  ]);
+}
+
 export function renderReportSection({
   journey,
   specialty,

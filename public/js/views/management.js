@@ -141,6 +141,9 @@ export async function renderManagement(container, ctx) {
               text: [
                 entry.attentionNumber,
                 [entry.puesto, entry.empresa].filter(Boolean).join(' · ') || null,
+                entry.responsibleProfessional
+                  ? `Profesional: ${entry.responsibleProfessional.nombre}`
+                  : null,
                 `Evaluaciones ${entry.evaluations.complete}/${entry.evaluations.total}`,
                 `Atenciones ${entry.attentionCount}`,
                 entry.certificateIssued ? 'certificado emitido' : null,

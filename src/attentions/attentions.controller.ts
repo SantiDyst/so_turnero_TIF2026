@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { AtencionEstado, RolUsuario } from '@prisma/client';
+import { AtencionEstado, ResultadoEspecialidad, RolUsuario } from '@prisma/client';
 
 import { AuthGuard } from '../auth/auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -22,6 +22,7 @@ import { AttentionState, isSupportedSpecialty } from '../shared/state-vocabulary
 import { AttentionAccessService } from './attention-access.service';
 import {
   AttentionCommandService,
+  CompleteAttentionInput,
   FinalizeAttentionInput,
   StartAttentionInput,
 } from './attention-command.service';
@@ -32,6 +33,12 @@ interface StartAttentionBody {
 
 interface FinalizeAttentionBody {
   state?: unknown;
+}
+
+interface CompleteAttentionBody {
+  observations?: unknown;
+  datos?: unknown;
+  result?: unknown;
 }
 
 @ApiTags('Attentions')
@@ -99,6 +106,49 @@ export class AttentionsController {
       .then(() => this.attentionCommandService.finalize(attentionId, input));
   }
 
+  @Patch('attentions/:id/complete')
+  @ApiOperation({
+    summary: 'Save the report and result, complete the evaluation and finalize the attention',
+  })
+  @ApiParam({ name: 'id', description: 'Attention id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['observations'],
+      properties: {
+        observations: {
+          type: 'string',
+          example: 'Sin hallazgos relevantes.',
+          description: 'Report conclusion. Required to close the attention.',
+        },
+        datos: {
+          type: 'object',
+          additionalProperties: true,
+          nullable: true,
+          description: 'Specialty-specific structured report fields.',
+        },
+        result: {
+          type: 'string',
+          nullable: true,
+          enum: ['APTO_PLENO', 'APTO_CONDICIONAL', 'NO_APTO'],
+          description: 'Required for CLINICA_MEDICA and PSICOLOGIA.',
+        },
+      },
+    },
+  })
+  complete(
+    @Param('id') attentionId: string,
+    @Body() body: CompleteAttentionBody,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const input = this.validateComplete(body);
+    const professional = requireProfessional(user);
+
+    return this.attentionAccessService
+      .assertAttentionOwned(attentionId, professional.id)
+      .then(() => this.attentionCommandService.completeAndFinalize(attentionId, input));
+  }
+
   private validateStart(body: StartAttentionBody): Omit<StartAttentionInput, 'professionalId'> {
     const specialty = typeof body.specialty === 'string' ? body.specialty.trim() : '';
 
@@ -118,5 +168,23 @@ export class AttentionsController {
     }
 
     throw new BadRequestException('state must be Finalizada or Pendiente.');
+  }
+
+  private validateComplete(body: CompleteAttentionBody): CompleteAttentionInput {
+    const observations = typeof body.observations === 'string' ? body.observations.trim() : '';
+    let result: ResultadoEspecialidad | null = null;
+
+    if (body.result !== undefined && body.result !== null && body.result !== '') {
+      if (
+        typeof body.result !== 'string' ||
+        !(Object.values(ResultadoEspecialidad) as string[]).includes(body.result)
+      ) {
+        throw new BadRequestException('result must be APTO_PLENO, APTO_CONDICIONAL, or NO_APTO.');
+      }
+
+      result = body.result as ResultadoEspecialidad;
+    }
+
+    return { observations, datos: body.datos, result };
   }
 }

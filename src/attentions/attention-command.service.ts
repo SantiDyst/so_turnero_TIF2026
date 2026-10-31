@@ -9,16 +9,21 @@ import {
   DisponibilidadProfesional,
   Especialidad,
   EvaluacionEstado,
+  InformeEstado,
   Prisma,
   RecorridoEstado,
+  ResultadoEspecialidad,
 } from '@prisma/client';
 
-import { ProfessionalsService } from '../professionals/professionals.service';
+import { lockJourney, storeJourneyAptitude } from '../aptitude/aptitude.service';
+import { ProfessionalsService, releaseProfessional } from '../professionals/professionals.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { REPORT_SCHEMA_VERSION, normalizeReportData } from '../reports/report-fields';
 import { rethrowPrismaConflict } from '../shared/prisma-error.mapper';
 import {
   AttentionState,
   toAttentionState,
+  toEvaluationState,
   toJourneyState,
   toProfessionalAvailability,
 } from '../shared/state-vocabulary';
@@ -32,15 +37,29 @@ export interface FinalizeAttentionInput {
   state: AtencionEstado;
 }
 
+export interface CompleteAttentionInput {
+  observations: string;
+  datos: unknown;
+  result: ResultadoEspecialidad | null;
+}
+
 interface LockedAttention {
   id: string;
   estado: string;
   profesionalId: string;
+  recorridoId: string;
+  evaluacionId: string | null;
+  especialidad: Especialidad;
 }
 
 const STARTABLE_JOURNEY_STATES: RecorridoEstado[] = [
   RecorridoEstado.EN_ESPERA,
   RecorridoEstado.EN_PROCESO,
+];
+
+const RESULT_SPECIALTIES: readonly Especialidad[] = [
+  Especialidad.CLINICA_MEDICA,
+  Especialidad.PSICOLOGIA,
 ];
 
 @Injectable()
@@ -212,12 +231,123 @@ export class AttentionCommandService {
     });
   }
 
+  async completeAndFinalize(attentionId: string, input: CompleteAttentionInput) {
+    return this.prisma.client.$transaction(async (transaction) => {
+      const attention = await this.lockAttention(transaction, attentionId);
+
+      if (attention.estado !== AttentionState.inAttention) {
+        throw new ConflictException('Only an active attention can be completed.');
+      }
+
+      const evaluation = attention.evaluacionId
+        ? await transaction.evaluacion.findUnique({ where: { id: attention.evaluacionId } })
+        : await transaction.evaluacion.findUnique({
+            where: {
+              recorridoId_especialidad: {
+                recorridoId: attention.recorridoId,
+                especialidad: attention.especialidad,
+              },
+            },
+          });
+
+      if (!evaluation) {
+        throw new BadRequestException('The attention has no associated evaluation.');
+      }
+
+      const journey = await lockJourney(transaction, attention.recorridoId);
+
+      if (journey.estado === RecorridoEstado.CIERRE_FINAL) {
+        throw new ConflictException('Journey is closed and cannot accept evaluation changes.');
+      }
+      if (journey.estado === RecorridoEstado.ANULADA) {
+        throw new ConflictException('Journey is annulled and cannot accept evaluation changes.');
+      }
+
+      const now = new Date();
+      let completedEvaluation = evaluation;
+
+      if (evaluation.estado !== EvaluacionEstado.COMPLETA) {
+        const openPendings = await transaction.pendiente.count({
+          where: { evaluacionId: evaluation.id, resueltoAt: null },
+        });
+        if (openPendings > 0) {
+          throw new ConflictException('Evaluation has open pendings.');
+        }
+        if (
+          RESULT_SPECIALTIES.includes(evaluation.especialidad) &&
+          !evaluation.resultado &&
+          !input.result
+        ) {
+          throw new ConflictException(
+            'A specialty result is required before completing this evaluation.',
+          );
+        }
+        if (input.observations.trim().length === 0) {
+          throw new BadRequestException('A Completo report requires non-empty observations.');
+        }
+
+        const normalized = normalizeReportData(evaluation.especialidad, input.datos);
+        if (normalized.errors.length > 0) {
+          throw new BadRequestException(normalized.errors.join(' '));
+        }
+
+        await transaction.informe.upsert({
+          where: { evaluacionId: evaluation.id },
+          create: {
+            evaluacionId: evaluation.id,
+            atencionId: attention.id,
+            profesionalId: attention.profesionalId,
+            observaciones: input.observations,
+            datos: normalized.data ?? Prisma.DbNull,
+            schemaVersion: REPORT_SCHEMA_VERSION,
+            estado: InformeEstado.COMPLETO,
+            completadoAt: now,
+          },
+          update: {
+            atencionId: attention.id,
+            profesionalId: attention.profesionalId,
+            observaciones: input.observations,
+            datos: normalized.data ?? Prisma.DbNull,
+            schemaVersion: REPORT_SCHEMA_VERSION,
+            estado: InformeEstado.COMPLETO,
+            completadoAt: now,
+          },
+        });
+
+        completedEvaluation = await transaction.evaluacion.update({
+          where: { id: evaluation.id },
+          data: {
+            estado: EvaluacionEstado.COMPLETA,
+            completadaAt: now,
+            ...(input.result ? { resultado: input.result } : {}),
+          },
+        });
+      }
+
+      const finalizedAttention = await transaction.atencion.update({
+        where: { id: attention.id },
+        data: { estado: AtencionEstado.FINALIZADA, endedAt: now },
+      });
+      await releaseProfessional(transaction, attention.profesionalId);
+      await storeJourneyAptitude(transaction, attention.recorridoId);
+
+      return {
+        attentionId: finalizedAttention.id,
+        evaluationId: completedEvaluation.id,
+        attentionState: toAttentionState(finalizedAttention.estado),
+        evaluationState: toEvaluationState(completedEvaluation.estado),
+        journeyState: toJourneyState(journey.estado as RecorridoEstado),
+        professionalAvailability: toProfessionalAvailability(DisponibilidadProfesional.DISPONIBLE),
+      };
+    });
+  }
+
   private async lockAttention(
     transaction: Prisma.TransactionClient,
     attentionId: string,
   ): Promise<LockedAttention> {
     const rows = await transaction.$queryRaw<LockedAttention[]>(
-      Prisma.sql`SELECT "id", "estado", "profesionalId" FROM "Atencion" WHERE "id" = ${attentionId} FOR UPDATE`,
+      Prisma.sql`SELECT "id", "estado", "profesionalId", "recorridoId", "evaluacionId", "especialidad" FROM "Atencion" WHERE "id" = ${attentionId} FOR UPDATE`,
     );
     const attention = rows[0];
 

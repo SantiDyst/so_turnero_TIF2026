@@ -105,6 +105,112 @@ describe('professional queue and closure recovery', () => {
     return started;
   }
 
+  it('closes the attention in a single save-and-finalize call', async () => {
+    const clinical = await createProfessional(Especialidad.CLINICA_MEDICA);
+    const headers = await professionalSessionHeaders(prisma, clinical.id);
+    const registered = await register();
+
+    const started = await server()
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(headers)
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
+      .expect(201);
+
+    const other = await createProfessional(Especialidad.CLINICA_MEDICA);
+    const otherHeaders = await professionalSessionHeaders(prisma, other.id);
+    const otherQueue = await server().get('/queue').set(otherHeaders).expect(200);
+    const sharedEntry = (
+      otherQueue.body as {
+        attentionNumber: string;
+        status: string;
+        professional: { nombre: string };
+      }[]
+    ).find((entry) => entry.attentionNumber === registered.journey.attentionNumber);
+
+    expect(sharedEntry).toEqual(
+      expect.objectContaining({
+        status: 'en_atencion',
+        professional: expect.objectContaining({ nombre: clinical.nombre }),
+      }),
+    );
+
+    const closed = await server()
+      .patch(`/attentions/${started.body.attentionId}/complete`)
+      .set(headers)
+      .send({
+        observations: 'Sin hallazgos relevantes.',
+        datos: { pesoKg: 72, tallaCm: 175 },
+        result: 'APTO_PLENO',
+      })
+      .expect(200);
+
+    expect(closed.body).toEqual(
+      expect.objectContaining({
+        attentionState: 'Finalizada',
+        evaluationState: 'COMPLETA',
+        professionalAvailability: 'Disponible',
+      }),
+    );
+
+    const journey = await server()
+      .get('/journeys')
+      .set(headers)
+      .query({ attentionNumber: registered.journey.attentionNumber })
+      .expect(200);
+
+    expect(
+      (journey.body.attentions as { id: string; state: string; endedAt: string | null }[]).find(
+        (attention) => attention.id === started.body.attentionId,
+      ),
+    ).toEqual(expect.objectContaining({ state: 'Finalizada', endedAt: expect.any(String) }));
+    expect(
+      (journey.body.evaluations as { specialty: string; state: string }[]).find(
+        (evaluation) => evaluation.specialty === Especialidad.CLINICA_MEDICA,
+      ),
+    ).toEqual(expect.objectContaining({ state: 'COMPLETA' }));
+    expect(
+      (journey.body.reports as { specialty: string; reportState: string }[]).find(
+        (report) => report.specialty === Especialidad.CLINICA_MEDICA,
+      ),
+    ).toEqual(expect.objectContaining({ reportState: 'Completo' }));
+
+    const professionalRow = await prisma.client.profesional.findUniqueOrThrow({
+      where: { id: clinical.id },
+    });
+    expect(professionalRow.disponibilidad).toBe('DISPONIBLE');
+
+    const queue = await server().get('/queue').set(headers).expect(200);
+    expect(
+      (queue.body as { attentionNumber: string; status: string }[]).find(
+        (entry) => entry.attentionNumber === registered.journey.attentionNumber,
+      ),
+    ).toEqual(expect.objectContaining({ status: 'completado' }));
+  });
+
+  it('rejects closing without a conclusion or without the specialty result', async () => {
+    const clinical = await createProfessional(Especialidad.CLINICA_MEDICA);
+    const headers = await professionalSessionHeaders(prisma, clinical.id);
+    const registered = await register();
+
+    const started = await server()
+      .post(`/journeys/${registered.journey.id}/attentions`)
+      .set(headers)
+      .send({ specialty: Especialidad.CLINICA_MEDICA })
+      .expect(201);
+
+    await server()
+      .patch(`/attentions/${started.body.attentionId}/complete`)
+      .set(headers)
+      .send({ observations: '   ', result: 'APTO_PLENO' })
+      .expect(400);
+
+    await server()
+      .patch(`/attentions/${started.body.attentionId}/complete`)
+      .set(headers)
+      .send({ observations: 'Sin hallazgos relevantes.' })
+      .expect(409);
+  });
+
   it('keeps an attended journey visible and allows completing and closing after finalizing', async () => {
     const clinical = await createProfessional(Especialidad.CLINICA_MEDICA);
     const biochemistry = await createProfessional(Especialidad.BIOQUIMICA);

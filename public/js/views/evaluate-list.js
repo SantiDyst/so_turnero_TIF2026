@@ -50,7 +50,14 @@ export async function renderEvaluateList(container, ctx) {
             }),
             el('div', {
               class: 'meta',
-              text: [entry.attentionNumber, workplace, when].filter(Boolean).join(' · '),
+              text: [
+                entry.attentionNumber,
+                entry.professional ? `Atiende: ${entry.professional.nombre}` : null,
+                workplace,
+                when,
+              ]
+                .filter(Boolean)
+                .join(' · '),
             }),
           ]),
         ]),

@@ -61,6 +61,7 @@ describe('journey overview', () => {
         derivedState: null,
         queuedAt: new Date('2026-10-23T10:00:00.000Z'),
         activeSpecialty: Especialidad.CLINICA_MEDICA,
+        responsibleProfessional: null,
         attentionCount: 1,
         annulledReason: null,
         annulledAt: null,
@@ -75,6 +76,32 @@ describe('journey overview', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ orderBy: { queuedAt: 'desc' }, take: 50 }),
     );
+  });
+
+  it('exposes the professional responsible for the current attention', async () => {
+    const { service } = serviceWith([
+      journeyFixture({
+        atenciones: [
+          {
+            estado: AtencionEstado.EN_ATENCION,
+            especialidad: Especialidad.CLINICA_MEDICA,
+            profesional: {
+              id: 'professional-1',
+              nombre: 'Dr. Ortega Raul',
+              especialidad: Especialidad.CLINICA_MEDICA,
+            },
+          },
+        ],
+      }),
+    ]);
+
+    const [entry] = await service.listOverview();
+
+    expect(entry.responsibleProfessional).toEqual({
+      id: 'professional-1',
+      nombre: 'Dr. Ortega Raul',
+      especialidad: Especialidad.CLINICA_MEDICA,
+    });
   });
 
   it('reports the derived waiting-for-call state without an active attention', async () => {

@@ -3,7 +3,7 @@ import { button, el } from '../dom.js';
 import { formatDate } from '../format.js';
 import * as map from '../state-map.js';
 import { renderClosurePanel } from './closure.js';
-import { renderReportSection } from './reports.js';
+import { renderClosingForm, renderReportSection } from './reports.js';
 
 function row(label, value) {
   return el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
@@ -250,6 +250,13 @@ export async function renderJourney(container, attentionNumber, ctx) {
     const ownsLatest = !latest || latest.professional?.id === ctx.user?.profesionalId;
     const canAct = canWorkOn(specialty) && ownsLatest;
     const ownsActive = active ? active.professional?.id === ctx.user?.profesionalId : true;
+    const showClosingForm =
+      canAct &&
+      Boolean(active) &&
+      ownsActive &&
+      Boolean(evaluation) &&
+      evaluation.state !== map.EVALUATION_COMPLETE &&
+      map.openPendingsOf(journey, evaluation.id).length === 0;
 
     const badgeClass =
       evaluation?.state === map.EVALUATION_COMPLETE
@@ -294,15 +301,36 @@ export async function renderJourney(container, attentionNumber, ctx) {
           }),
         );
       } else if (active) {
-        if (
-          evaluation &&
-          map.canRecordResult(specialty) &&
-          evaluation.state !== map.EVALUATION_COMPLETE
-        ) {
-          nodes.push(resultRow(specialty, evaluation));
+        if (showClosingForm) {
+          nodes.push(
+            renderClosingForm({
+              specialty,
+              report,
+              evaluation,
+              onSubmit: (payload) =>
+                mutate(
+                  specialty,
+                  'Guardando y finalizando…',
+                  () => api.completeAttention(active.id, payload),
+                  'Atención finalizada.',
+                ),
+              onError: (message) => {
+                notices.set(specialty, { text: message, kind: 'error' });
+                render();
+              },
+            }),
+          );
+        } else {
+          if (
+            evaluation &&
+            map.canRecordResult(specialty) &&
+            evaluation.state !== map.EVALUATION_COMPLETE
+          ) {
+            nodes.push(resultRow(specialty, evaluation));
+          }
+          nodes.push(completionBlock(specialty, evaluation));
+          nodes.push(finalizeBlock(specialty, active));
         }
-        nodes.push(completionBlock(specialty, evaluation));
-        nodes.push(finalizeBlock(specialty, active));
       } else if (map.canStart(journey, specialty)) {
         nodes.push(startRow(specialty));
       } else if (evaluation && evaluation.state !== map.EVALUATION_COMPLETE) {
@@ -313,28 +341,30 @@ export async function renderJourney(container, attentionNumber, ctx) {
       }
     }
 
-    nodes.push(
-      renderReportSection({
-        journey,
-        specialty,
-        editable: canAct,
-        editing: canAct && (editingReports.has(specialty) || !report?.reportId),
-        onEdit: () => {
-          editingReports.add(specialty);
-          render();
-        },
-        onCancel: () => {
-          editingReports.delete(specialty);
-          render();
-        },
-        onAction: (pendingText, action, successText) =>
-          mutate(specialty, pendingText, action, successText),
-        onError: (message) => {
-          notices.set(specialty, { text: message, kind: 'error' });
-          render();
-        },
-      }),
-    );
+    if (!showClosingForm) {
+      nodes.push(
+        renderReportSection({
+          journey,
+          specialty,
+          editable: canAct,
+          editing: canAct && (editingReports.has(specialty) || !report?.reportId),
+          onEdit: () => {
+            editingReports.add(specialty);
+            render();
+          },
+          onCancel: () => {
+            editingReports.delete(specialty);
+            render();
+          },
+          onAction: (pendingText, action, successText) =>
+            mutate(specialty, pendingText, action, successText),
+          onError: (message) => {
+            notices.set(specialty, { text: message, kind: 'error' });
+            render();
+          },
+        }),
+      );
+    }
 
     return el('section', { class: `card ${map.SPECIALTY_CLASS[specialty]}` }, nodes);
   }

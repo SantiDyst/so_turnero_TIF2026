@@ -74,20 +74,28 @@ export class QueueQueryService {
         postulante: { select: { nombre: true, apellido: true } },
         atenciones: {
           where: { especialidad: viewer.specialty },
-          select: { estado: true },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            estado: true,
+            profesional: { select: { id: true, nombre: true } },
+          },
         },
       },
     });
 
-    return journeys.map((journey) => ({
-      ...this.toQueueEntry(journey),
-      status: journey.atenciones.some(
+    return journeys.map((journey) => {
+      const activeAttention = journey.atenciones.find(
         (attention) => attention.estado === AtencionEstado.EN_ATENCION,
-      )
-        ? 'en_atencion'
-        : 'pendiente',
-      completedAt: null,
-    }));
+      );
+      const responsible = activeAttention ?? journey.atenciones[0] ?? null;
+
+      return {
+        ...this.toQueueEntry(journey),
+        status: activeAttention ? 'en_atencion' : 'pendiente',
+        completedAt: null,
+        professional: responsible?.profesional ?? null,
+      };
+    });
   }
 
   private async professionalCompletedQueue(viewer: ProfessionalViewer) {
@@ -105,6 +113,7 @@ export class QueueQueryService {
         recorridoId: true,
         estado: true,
         endedAt: true,
+        profesional: { select: { id: true, nombre: true } },
         recorrido: {
           select: {
             postulanteId: true,
@@ -132,6 +141,7 @@ export class QueueQueryService {
         ...this.toQueueEntry(attention.recorrido),
         status: attention.estado === AtencionEstado.EN_ATENCION ? 'en_atencion' : 'completado',
         completedAt: attention.endedAt,
+        professional: attention.profesional,
       });
     }
 
@@ -173,7 +183,14 @@ export class QueueQueryService {
         anuladaAt: true,
         anuladoPor: { select: { id: true, nombre: true } },
         postulante: { select: { id: true, nombre: true, apellido: true } },
-        atenciones: { select: { estado: true, especialidad: true } },
+        atenciones: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            estado: true,
+            especialidad: true,
+            profesional: { select: { id: true, nombre: true, especialidad: true } },
+          },
+        },
         evaluaciones: {
           select: {
             estado: true,
@@ -189,6 +206,7 @@ export class QueueQueryService {
       const activeAttention = journey.atenciones.find(
         (attention) => attention.estado === AtencionEstado.EN_ATENCION,
       );
+      const responsible = activeAttention ?? journey.atenciones[0] ?? null;
       const hasPendingEvaluation = journey.evaluaciones.some(
         (evaluation) => evaluation.estado === EvaluacionEstado.PENDIENTE,
       );
@@ -207,6 +225,7 @@ export class QueueQueryService {
         empresa: journey.empresa,
         puesto: journey.puesto,
         activeSpecialty: activeAttention?.especialidad ?? null,
+        responsibleProfessional: responsible?.profesional ?? null,
         attentionCount: journey.atenciones.length,
         annulledReason: journey.motivoAnulacion,
         annulledAt: journey.anuladaAt,

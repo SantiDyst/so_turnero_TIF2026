@@ -86,6 +86,8 @@ export const api = {
     request('POST', `/journeys/${journeyId}/attentions`, { specialty }),
   finalizeAttention: (attentionId, state) =>
     request('PATCH', `/attentions/${attentionId}/finalize`, { state }),
+  completeAttention: (attentionId, data) =>
+    request('PATCH', `/attentions/${attentionId}/complete`, data),
   saveResult: (evaluationId, resultado) =>
     request('PATCH', `/evaluations/${evaluationId}/result`, { resultado }),
   completeEvaluation: (evaluationId) => request('PATCH', `/evaluations/${evaluationId}/complete`),
